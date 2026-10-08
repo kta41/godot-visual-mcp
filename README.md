@@ -85,15 +85,23 @@ The project includes an optional `Dockerfile` and `compose.yaml` to provide an i
 
 ## 📦 Releases
 
+Development happens on `develop`. Changes reach the protected `main` branch
+through a pull request from `develop`, with one approving review and all
+Python 3.11, 3.12, and 3.13 checks passing. Merging that pull request starts
+the release workflow automatically. Before merging, update the package version
+and changelog; the workflow refuses to republish an existing release version.
+
 Releases are created by pushing a tag that matches the package version, for
 example:
 
 ```bash
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
-The release workflow builds the wheel and source distribution with `uv`,
+The release workflow for future merges creates the version tag automatically.
+The manual tag commands above are only a fallback for releases that are not
+created through the `develop` → `main` pull request flow. It builds the wheel and source distribution with `uv`,
 validates installation in Python 3.11, generates SHA-256 checksums and an SPDX
 SBOM, publishes the package to PyPI through trusted publishing, and publishes
 the container to GHCR. Configure a PyPI trusted publisher for the
