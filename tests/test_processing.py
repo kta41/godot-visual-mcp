@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from godot_visual_mcp.assets import create_placeholder
+from godot_visual_mcp.assets import create_placeholder, verify_asset
 from godot_visual_mcp.filesystem import GodotProject
 from godot_visual_mcp.processing import apply_palette, generate_spritesheet, list_palettes
 
@@ -43,3 +43,10 @@ def test_apply_palette_preserves_alpha_and_uses_palette(tmp_path: Path) -> None:
 
 def test_list_palettes() -> None:
     assert list_palettes() == ["custom", "gameboy", "pico8"]
+
+
+def test_transform_result_is_import_ready(tmp_path: Path) -> None:
+    project = GodotProject(tmp_path)
+    create_placeholder(project, "res://source.png", 8, 8)
+    apply_palette(project, "res://source.png", "res://mapped.png", "gameboy")
+    assert verify_asset(project, "res://mapped.png")["ready"] is True

@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+COPY palettes ./palettes
+COPY workflows ./workflows
+RUN pip install --no-cache-dir .
+
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["python", "-m", "server.main"]

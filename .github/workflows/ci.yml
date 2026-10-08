@@ -16,3 +16,4 @@ jobs:
       - run: ruff check .
       - run: mypy src
       - run: pytest
+      - run: python -m pip wheel --no-deps --no-build-isolation -w dist .

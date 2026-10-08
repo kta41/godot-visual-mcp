@@ -1,0 +1,20 @@
+services:
+  godot-visual-mcp:
+    build: .
+    stdin_open: true
+    tty: true
+    environment:
+      GODOT_PROJECT_ROOT: /godot
+      COMFYUI_ENDPOINT: http://comfyui:8188
+    volumes:
+      - ./example-godot-project:/godot
+    depends_on:
+      - comfyui
+
+  comfyui:
+    image: comfyanonymous/comfyui:latest
+    profiles: ["ai"]
+    ports:
+      - "8188:8188"
+    volumes:
+      - ./comfyui-data:/home/ComfyUI

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from godot_visual_mcp.assets import create_placeholder, inspect_asset, validate_asset
+from godot_visual_mcp.assets import create_placeholder, inspect_asset, validate_asset, verify_asset
 from godot_visual_mcp.filesystem import GodotProject
 
 
@@ -30,3 +30,11 @@ def test_validation_reports_corrupt_asset(tmp_path: Path) -> None:
     assert result["valid"] is False
     assert result["errors"]
 
+
+def test_verification_reports_import_readiness(tmp_path: Path) -> None:
+    project = GodotProject(tmp_path)
+    create_placeholder(project, "res://verified.png", 8, 8)
+    result = verify_asset(project, "res://verified.png")
+    assert result["ready"] is True
+    assert result["import_verification"] == "readable_and_supported"
+    assert result["validation"]["metadata"]["width"] == 8

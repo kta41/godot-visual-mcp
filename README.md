@@ -3,7 +3,7 @@
 Secure, offline-first asset tools for Godot exposed through a Model Context
 Protocol (MCP) server.
 
-## v0.3 quickstart
+## v1.0 quickstart
 
 Install the core profile with Python 3.11+:
 
@@ -45,6 +45,16 @@ retrieves the first output image, optionally removes its background, crops
 transparent borders, writes to `res://`, and validates the result. CPU-only
 machines can use ComfyUI's configured CPU backend; no CUDA dependency is
 required by this project.
+
+## Release documentation
+
+- [Security model](SECURITY.md)
+- [Tool reference](TOOL_REFERENCE.md)
+- [Changelog](CHANGELOG.md)
+
+The optional [Dockerfile](Dockerfile) and [compose.yaml](compose.yaml) provide
+an isolated core container and an opt-in ComfyUI profile. The core profile has
+no GPU or AI runtime requirement.
 
 Run tests and lint:
 
