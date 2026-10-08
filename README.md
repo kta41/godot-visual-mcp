@@ -54,6 +54,133 @@ All tool responses use a standard envelope format (`status` / `data` / `warnings
 **Generative AI Tools (v0.3):**
 *   **Generation & Cleaning:** `generate_asset`, `remove_background`
 
+## 🧰 Tool Reference
+
+All tools return the same envelope:
+
+```json
+{
+  "status": "ok",
+  "data": {},
+  "warnings": [],
+  "errors": []
+}
+```
+
+Paths use Godot's `res://` notation and are always checked against the selected
+project. Mutating tools do not overwrite existing files unless
+`overwrite=true` is provided. Generated or transformed images include
+verification data. Errors include a stable code, a retryability flag, a
+suggestion, and a correlation ID.
+
+### Project and image inspection
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `inspect_asset` | `path` | Reads image format, dimensions, alpha, color mode, frame count, and sprite-frame geometry. |
+| `list_assets` | `extension?` | Lists files inside the project sandbox, optionally filtered by extension; excludes `.godot` and `.import`. |
+| `validate_asset` | `path` | Checks that an image exists, can be decoded, has valid dimensions, and uses a supported format. |
+| `inspect_project` | `project_root?` | Reads `project.godot`, returns project name/configuration, and detects a Godot executable without launching it. |
+| `verify_import` | `godot_binary?`, `timeout?` | Opens the project with Godot headlessly when available and reports import diagnostics. |
+| `validate_scene` | `path` | Checks `.tscn` structure, nodes, external resources, and missing `res://` references. |
+| `find_references` | `asset` | Finds project text resources that reference a given asset. |
+| `find_unused` | — | Reports unreferenced image assets that may be candidates for cleanup. |
+
+Example:
+
+```json
+{
+  "name": "inspect_asset",
+  "arguments": {"path": "res://characters/hero.png"}
+}
+```
+
+### Offline image creation and palettes
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `create_placeholder` | `output`, `width`, `height`, `frames?`, `label?` | Creates a deterministic labeled RGBA PNG or spritesheet for rapid prototyping. |
+| `generate_spritesheet` | `inputs`, `output`, `columns` | Arranges equal-sized frames into a uniform-grid PNG spritesheet. |
+| `list_palettes` | — | Lists bundled Game Boy, PICO-8, and custom palettes. |
+| `apply_palette` | `source`, `output`, `palette`, `distance_metric?` | Maps colors to a built-in palette using RGB or LAB distance while preserving alpha. |
+
+These operations are offline and do not require ComfyUI, CUDA, or a GPU.
+
+### Godot scenes and animation
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `create_scene` | `output`, `root_type?`, `root_name?` | Creates a minimal validated `.tscn` scene. |
+| `add_sprite_to_scene` | `scene`, `texture`, `node_name?`, `animated?` | Adds a sandboxed `Sprite2D` or `AnimatedSprite2D` texture reference. |
+| `create_sprite_frames` | `output`, `frames`, `animation?`, `fps?`, `loop?` | Generates a Godot `SpriteFrames` resource from project textures. |
+
+Scene tools validate references after writing and never edit `.import` files.
+
+### Aseprite and animation manifests
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `inspect_aseprite` | `path` | Reads exported Aseprite JSON, frame count, metadata, and animation tags. |
+| `create_animation_manifest` | `source`, `output` | Converts Aseprite `frameTags` into a stable project-local animation manifest while preserving order and direction. |
+
+The current integration consumes Aseprite-exported JSON and PNG files; it does
+not execute the Aseprite binary or accept arbitrary shell commands.
+
+### Offline visual transformations
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `resize_asset_tool` | `source`, `output`, `width`, `height`, `pixel_perfect?` | Resizes with nearest-neighbor pixel-perfect scaling by default; Lanczos is available for smooth images. |
+| `crop_asset_tool` | `source`, `output`, `padding?` | Crops transparent borders and optionally retains transparent padding. |
+| `normalize_asset_tool` | `source`, `output`, `center?` | Re-centers visible content on the original canvas without changing canvas dimensions. |
+| `generate_thumbnail_tool` | `source`, `output`, `size?` | Creates a bounded aspect-preserving thumbnail. |
+| `transform_asset_colors` | `source`, `output`, `operation` | Applies grayscale, brightness, or contrast transformations. |
+| `flip_asset_tool` | `source`, `output`, `horizontal?` | Flips horizontally or vertically. |
+| `rotate_asset_tool` | `source`, `output`, `degrees` | Rotates by 90, 180, or 270 degrees. |
+| `compare_asset_images` | `left`, `right` | Compares two images and returns a normalized pixel-difference metric. |
+| `deduplicate_asset_images` | `paths` | Groups byte-identical image files to identify duplicates. |
+
+Transformation responses contain `before`, `after`, dimension changes,
+alpha-preservation information, and output verification.
+
+### ComfyUI generation and history
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `generate_asset` | `prompt`, `workflow`, `output`, `width?`, `height?`, `seed?`, `batch?` | Submits a local workflow to ComfyUI, polls jobs, retrieves all batch outputs, optionally removes backgrounds/crops, validates, and records metadata. |
+| `remove_background` | `source`, `output` | Uses the optional `[ai]`/`rembg` profile to remove a background without leaving the project sandbox. |
+| `list_generation_history` | — | Lists local generation metadata and cache records without storing credentials or binary data. |
+
+`generate_asset` also supports `timeout`, `retries`, `validate_workflow`,
+`use_cache`, `overwrite`, and an explicit `endpoint`. The core installation
+does not install ComfyUI or `rembg`.
+
+### Project discovery and MCP ergonomics
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `discover_projects_tool` | `search_root`, `max_depth?` | Finds nearby Godot projects without following symlinks and marks ambiguous results. |
+| `select_project_tool` | `project_root?`, `alias?` | Selects a validated project for subsequent project-aware operations and resources. |
+| `set_project_alias_tool` | `alias`, `project_root` | Registers an in-memory alias for a validated project. |
+| `list_project_aliases_tool` | — | Lists aliases configured in the current MCP process. |
+
+The selected project can also come from `GODOT_PROJECT_ROOT`. Project aliases
+are process-local and do not write global configuration.
+
+### Audio, fonts, SVG, 3D, and JSON
+
+| Tool | Main parameters | Capabilities |
+| --- | --- | --- |
+| `inspect_audio_asset` | `path` | Inspects WAV metadata and validates basic OGG/MP3 headers; reports duration/channels/sample rate when available. |
+| `inspect_font_asset` | `path` | Inspects TTF/OTF family, style, and basic font metrics using Pillow. |
+| `inspect_svg_asset` | `path` | Validates SVG XML, dimensions, and `viewBox`; rejects external references. |
+| `convert_svg_asset` | `source`, `output` | Converts a validated SVG to PNG through optional offline CairoSVG support. |
+| `inspect_3d_asset_tool` | `path` | Inspects GLTF/GLB headers, meshes, materials, animations, textures, and missing internal references. |
+| `inspect_json_asset_tool` | `path` | Parses bounded JSON resources without executing contents and reports root type/keys. |
+
+All extended-asset inspections enforce the configured input-size limit. No
+external URL is downloaded by these tools.
+
 ## 🧠 ComfyUI Integration (Optional)
 
 The core installation intentionally omits heavy AI dependencies. To enable generative workflows and background removal, install the `[ai]` profile:

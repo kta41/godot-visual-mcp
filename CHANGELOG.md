@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0 - 2026-10-08
+
+- Documented the complete MCP tool surface with usage, parameters, and capabilities.
+- Prepared the release for the protected `develop` to `main` pull request flow.
+
 ## 1.5.0 - 2026-10-08
 
 - Added reproducible `uv`-based distribution workflows.
