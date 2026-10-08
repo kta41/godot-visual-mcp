@@ -1,9 +1,10 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -11,27 +12,55 @@ permissions:
   packages: write
 
 jobs:
+  prepare:
+    name: Prepare release version
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'develop'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(uv run --no-dev python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          tag="v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists; bump project.version before merging."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
   artifacts:
     name: Build release artifacts
+    needs: prepare
+    if: needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
           enable-cache: true
-      - name: Verify tag matches package version
-        run: |
-          test "v$(uv run --no-dev python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" = "${GITHUB_REF_NAME}"
       - run: uv sync --frozen
       - run: uv build --out-dir dist
       - name: Validate wheel installation
         run: |
           uv venv --python 3.11 release-venv
           uv pip install --python release-venv/bin/python --no-deps dist/*.whl
-          release-venv/bin/python -c "import godot_visual_mcp; assert godot_visual_mcp.__version__ == '${GITHUB_REF_NAME#v}'"
+          release-venv/bin/python -c "import godot_visual_mcp; assert godot_visual_mcp.__version__ == '${{ needs.prepare.outputs.version }}'"
       - name: Generate checksums
         run: sha256sum dist/* > dist/SHA256SUMS
       - name: Generate SBOM
@@ -48,7 +77,8 @@ jobs:
 
   publish-pypi:
     name: Publish to PyPI
-    needs: artifacts
+    needs: [prepare, artifacts]
+    if: needs.prepare.result == 'success' && needs.artifacts.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -67,10 +97,13 @@ jobs:
 
   publish-ghcr:
     name: Publish Docker image
-    needs: artifacts
+    needs: [prepare, artifacts]
+    if: needs.prepare.result == 'success' && needs.artifacts.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -81,7 +114,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=tag
+            type=raw,value=${{ needs.prepare.outputs.version }}
             type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:
@@ -92,12 +125,14 @@ jobs:
 
   github-release:
     name: Create GitHub release
-    needs: artifacts
+    needs: [prepare, artifacts]
+    if: needs.prepare.result == 'success' && needs.artifacts.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/download-artifact@v7
         with:
           name: python-artifacts
@@ -105,4 +140,6 @@ jobs:
       - name: Create release with generated notes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes --verify-tag
+        run: |
+          tag="v${{ needs.prepare.outputs.version }}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" dist/* --generate-notes --target "${{ github.event.pull_request.merge_commit_sha }}"
