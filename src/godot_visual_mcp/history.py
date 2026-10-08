@@ -54,5 +54,6 @@ def find_cached_generation(project: GodotProject, parameters: dict[str, Any]) ->
                     project.safe_read(result["path"])
                 except FileNotFoundError:
                     return None
-                return record
+                cached_record: dict[str, Any] = {key: value for key, value in record.items()}
+                return cached_record
     return None
