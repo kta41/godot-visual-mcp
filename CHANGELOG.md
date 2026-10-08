@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 - 2026-10-08
+
+- Added Aseprite JSON animation inspection and manifests.
+- Added offline resize, crop, normalize, thumbnail, color, flip, rotate,
+  comparison, and deduplication tools.
+- Added generation history and opt-in cache reuse.
+
 ## 1.1.0 - 2026-10-08
 
 - Added Godot project discovery and optional headless import verification.
