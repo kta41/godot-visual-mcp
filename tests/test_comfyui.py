@@ -40,6 +40,27 @@ async def test_comfyui_submit_poll_and_retrieve() -> None:
 
 
 @pytest.mark.asyncio
+async def test_comfyui_returns_all_batch_outputs() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/prompt":
+            return httpx.Response(200, json={"prompt_id": "batch-1"})
+        if request.url.path == "/history/batch-1":
+            return httpx.Response(
+                200,
+                json={"batch-1": {"outputs": {"9": {"images": [
+                    {"filename": "one.png"}, {"filename": "two.png"}
+                ]}}}},
+            )
+        return httpx.Response(200, content=image_bytes())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        images = await ComfyUIClient("http://comfy", client=client).generate_images(
+            {}, poll_interval=0, timeout=1
+        )
+    assert len(images) == 2
+
+
+@pytest.mark.asyncio
 async def test_comfyui_timeout_is_actionable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/prompt":

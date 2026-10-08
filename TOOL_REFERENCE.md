@@ -20,6 +20,14 @@ when `GODOT_PROJECT_ROOT` is configured.
 | `list_palettes()` | List bundled JSON palettes. |
 | `generate_asset(prompt, workflow, output, ...)` | Generate through ComfyUI and validate the result. |
 | `remove_background(source, output, overwrite?)` | Optional `rembg` background removal. |
+| `inspect_project()` | Inspect `project.godot` and detect the Godot binary. |
+| `verify_import()` | Run Godot headless when available and report import diagnostics. |
+| `validate_scene(path)` | Validate a `.tscn` and its `res://` references. |
+| `create_scene(output, ...)` | Create a controlled Godot scene. |
+| `add_sprite_to_scene(scene, texture, ...)` | Add a Sprite2D or AnimatedSprite2D. |
+| `create_sprite_frames(output, frames, ...)` | Create a SpriteFrames resource. |
+| `find_references(asset)` | Find text resources referencing an asset. |
+| `find_unused()` | Find unreferenced image assets. |
 
 Mutating tools include `data.verification` with the resulting path, metadata,
 validation status, and import-readiness. `generate_asset` additionally reports

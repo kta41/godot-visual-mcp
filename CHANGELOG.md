@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 - 2026-10-08
+
+- Added Godot project discovery and optional headless import verification.
+- Added scene creation, sprite composition, SpriteFrames resources, and
+  reference/unused-asset auditing.
+- Hardened ComfyUI with workflow schema validation, batch outputs, retries,
+  cancellation, stable error codes, and progress callbacks.
+- Bundled palettes and workflows inside distributable wheels.
+
 ## 1.0.0 - 2026-10-08
 
 - Completed the v0.1 foundation, v0.2 processing, v0.3 ComfyUI integration,

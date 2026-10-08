@@ -69,7 +69,7 @@ def _metric(name: str) -> DistanceMetric:
 
 def load_palette(name: str, palette_root: Path | None = None) -> Palette:
     """Load a built-in or custom JSON palette and validate its schema."""
-    root = palette_root or Path(__file__).parents[2] / "palettes"
+    root = palette_root or Path(__file__).parent / "resources" / "palettes"
     path = Path(name)
     if path.name != name or path.suffix.lower() != ".json":
         path = root / f"{name}.json"
@@ -88,7 +88,7 @@ def load_palette(name: str, palette_root: Path | None = None) -> Palette:
 
 def list_palettes(palette_root: Path | None = None) -> list[str]:
     """List available JSON palettes by their names."""
-    root = palette_root or Path(__file__).parents[2] / "palettes"
+    root = palette_root or Path(__file__).parent / "resources" / "palettes"
     return sorted(path.stem for path in root.glob("*.json"))
 
 

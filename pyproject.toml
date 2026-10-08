@@ -1,6 +1,6 @@
 [project]
 name = "godot-visual-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "A secure, offline-first MCP server for Godot asset prototyping."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,3 +40,6 @@ target-version = "py311"
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+[tool.setuptools.package-data]
+godot_visual_mcp = ["resources/palettes/*.json", "resources/workflows/*.json"]

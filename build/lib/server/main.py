@@ -1,4 +1,4 @@
-"""FastMCP stdio server for the v0.3 Godot asset tools."""
+"""FastMCP stdio server for the v1.1 Godot project tools."""
 
 from __future__ import annotations
 
@@ -16,9 +16,21 @@ from godot_visual_mcp.assets import verify_asset as verify_image
 from godot_visual_mcp.comfyui import generate_asset as generate_asset_engine
 from godot_visual_mcp.comfyui import remove_background as remove_background_engine
 from godot_visual_mcp.filesystem import GodotProject, ProjectPathError
+from godot_visual_mcp.godot import (
+    discover_project,
+    find_asset_references,
+    find_unused_assets,
+    verify_godot_import,
+)
+from godot_visual_mcp.godot import (
+    validate_scene as validate_godot_scene,
+)
 from godot_visual_mcp.processing import apply_palette as apply_palette_asset
 from godot_visual_mcp.processing import generate_spritesheet as generate_spritesheet_asset
 from godot_visual_mcp.processing import list_palettes as list_available_palettes
+from godot_visual_mcp.scenes import add_sprite_to_scene as add_sprite_scene
+from godot_visual_mcp.scenes import create_scene as create_scene_asset
+from godot_visual_mcp.scenes import create_sprite_frames as create_frames_asset
 
 mcp = FastMCP("godot-visual-mcp")
 
@@ -152,6 +164,126 @@ def list_palettes() -> dict[str, Any]:
 
 
 @mcp.tool
+def inspect_project(project_root: str | None = None) -> dict[str, Any]:
+    """Inspect a Godot project and report its configuration and Godot binary."""
+    try:
+        return _success(discover_project(_project(project_root).root))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def verify_import(
+    godot_binary: str | None = None,
+    timeout: float = 120.0,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Open the project with Godot headlessly and report import readiness."""
+    try:
+        return _success(verify_godot_import(
+            _project(project_root).root, godot_binary=godot_binary, timeout=timeout
+        ))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def validate_scene(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Validate a Godot .tscn structure and its referenced project resources."""
+    try:
+        return _success(validate_godot_scene(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def find_references(asset: str, project_root: str | None = None) -> dict[str, Any]:
+    """Find project text resources that reference an asset."""
+    try:
+        return _success({"asset": asset, "references": find_asset_references(_project(project_root), asset)})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def find_unused(project_root: str | None = None) -> dict[str, Any]:
+    """Find image assets that are not referenced by project text resources."""
+    try:
+        return _success({"assets": find_unused_assets(_project(project_root))})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def create_scene(
+    output: str,
+    root_type: str = "Node2D",
+    root_name: str = "Main",
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Create a minimal validated Godot scene under res://."""
+    try:
+        project = _project(project_root)
+        return _success(_verified_scene(project, create_scene_asset(
+            project, output, root_type=root_type, root_name=root_name, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def add_sprite_to_scene(
+    scene: str,
+    texture: str,
+    node_name: str = "Sprite2D",
+    animated: bool = False,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Add a Sprite2D or AnimatedSprite2D with a sandboxed texture reference."""
+    try:
+        project = _project(project_root)
+        return _success(_verified_scene(project, add_sprite_scene(
+            project, scene, texture, node_name=node_name, animated=animated, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def create_sprite_frames(
+    output: str,
+    frames: list[str],
+    animation: str = "default",
+    fps: float = 8.0,
+    loop: bool = True,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Create a SpriteFrames resource from texture frames under res://."""
+    try:
+        project = _project(project_root)
+        return _success(_verified_scene(project, create_frames_asset(
+            project, output, frames, animation=animation, fps=fps, loop=loop, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+def _verified_scene(project: GodotProject, data: dict[str, object]) -> dict[str, object]:
+    path = data.get("path")
+    if not isinstance(path, str):
+        raise TypeError("Scene operation did not return a path")
+    result = dict(data)
+    if path.endswith(".tscn"):
+        result["verification"] = validate_godot_scene(project, path)
+    else:
+        result["verification"] = {"ready": project.resolve_res_path(path).is_file(), "path": path}
+    return result
+
+
+@mcp.tool
 async def generate_asset(
     prompt: str,
     workflow: str,
@@ -164,6 +296,8 @@ async def generate_asset(
     crop: bool = True,
     overwrite: bool = False,
     timeout: float = 300.0,
+    retries: int = 0,
+    validate_workflow: bool = False,
     endpoint: str | None = None,
     project_root: str | None = None,
 ) -> dict[str, Any]:
@@ -186,6 +320,8 @@ async def generate_asset(
                 crop=crop,
                 overwrite=overwrite,
                 timeout=timeout,
+                retries=retries,
+                validate_workflow=validate_workflow,
             ),
         ))
     except (OSError, ValueError, RuntimeError, httpx.HTTPError) as exc:
