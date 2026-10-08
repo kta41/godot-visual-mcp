@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any
 
 from PIL import Image, ImageChops, ImageEnhance
 
@@ -19,7 +19,7 @@ def _load(project: GodotProject, path: str) -> Image.Image:
         ensure_input_size(len(data))
         with Image.open(io.BytesIO(data)) as image:
             ensure_image_dimensions(image.width, image.height)
-            converted = cast(Image.Image, image.convert("RGBA"))
+            converted = image.convert("RGBA")
             converted.load()
             return converted
     except OSError as exc:

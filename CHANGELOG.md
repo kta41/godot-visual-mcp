@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 - 2026-10-08
+
+- Added reproducible `uv`-based distribution workflows.
+- Added Python 3.11, 3.12, and 3.13 CI coverage.
+- Added release automation for PyPI, GHCR, checksums, SBOM, and GitHub artifacts.
+
 ## 1.4.0 - 2026-10-08
 
 - Added configurable input, image, batch, operation-time, and project-quota limits.

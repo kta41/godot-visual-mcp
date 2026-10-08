@@ -13,16 +13,16 @@ Empower your LLM agents (Cline, Roo Code, Copilot) to inspect, generate, and tra
 
 Requires Python 3.11+. The core profile runs entirely offline and has no heavy AI or GPU dependencies.
 
-```
-
 The project uses `uv.lock` for reproducible environments. Configurable safety
 limits include `MCP_MAX_INPUT_BYTES`, `MCP_MAX_PIXELS`, `MCP_MAX_FRAMES`,
-`MCP_MAX_BATCH`, `MCP_MAX_OPERATION_SECONDS`, and `MCP_MAX_PROJECT_BYTES`.bash
+`MCP_MAX_BATCH`, `MCP_MAX_OPERATION_SECONDS`, and `MCP_MAX_PROJECT_BYTES`.
+
+```bash
 # Install core tools and development dependencies
 uv sync
 
 # Run the server (requires Godot project path)
-GODOT_PROJECT_ROOT=/path/to/my-godot-project python -m server.main
+GODOT_PROJECT_ROOT=/path/to/my-godot-project uv run python -m server.main
 ```
 
 ### Client Configuration (stdio)
@@ -32,8 +32,8 @@ Configure your MCP client to launch the server via `stdio`. Every asset path pro
 {
   "mcpServers": {
     "godot-visual-mcp": {
-      "command": "python",
-      "args": ["-m", "server.main"],
+      "command": "uv",
+      "args": ["run", "--no-dev", "python", "-m", "server.main"],
       "env": {
         "GODOT_PROJECT_ROOT": "/path/to/my-godot-project"
       }
@@ -82,6 +82,22 @@ Security and directory integrity are core design principles:
 ## 🐳 Docker Deployment
 
 The project includes an optional `Dockerfile` and `compose.yaml` to provide an isolated core container and an opt-in ComfyUI profile. The default core container has no GPU or AI runtime requirements, keeping the footprint minimal.
+
+## 📦 Releases
+
+Releases are created by pushing a tag that matches the package version, for
+example:
+
+```bash
+git tag v1.5.0
+git push origin v1.5.0
+```
+
+The release workflow builds the wheel and source distribution with `uv`,
+validates installation in Python 3.11, generates SHA-256 checksums and an SPDX
+SBOM, publishes the package to PyPI through trusted publishing, and publishes
+the container to GHCR. Configure a PyPI trusted publisher for the
+`pypi` environment before using the workflow.
 
 ## 🛠️ Development & Testing
 

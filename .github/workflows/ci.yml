@@ -7,14 +7,31 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
           enable-cache: true
-      - run: uv sync --frozen
+      - run: uv sync --frozen --python ${{ matrix.python-version }}
       - run: uv run ruff check .
       - run: uv run mypy src
       - run: uv run pytest
-      - run: uv build
+      - run: uv build --out-dir dist
+      - name: Validate wheel installation
+        run: |
+          uv venv --python ${{ matrix.python-version }} wheel-venv
+          uv pip install --python wheel-venv/bin/python --no-deps dist/*.whl
+          wheel-venv/bin/python -c "import godot_visual_mcp; assert godot_visual_mcp.__version__"
+      - name: Scan locked dependencies
+        if: matrix.python-version == '3.13'
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements.txt > /tmp/requirements.txt
+          uvx --from pip-audit pip-audit -r /tmp/requirements.txt
+      - name: Build Docker image
+        if: matrix.python-version == '3.13'
+        run: docker build --tag godot-visual-mcp:ci .
