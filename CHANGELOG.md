@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 - 2026-10-08
+
+- Added safe project discovery, selection, aliases, MCP resources, and prompts.
+- Added offline inspection for WAV, OGG, MP3, TTF, OTF, SVG, JSON, GLTF, and GLB.
+- Added SVG validation and optional offline SVG-to-PNG conversion.
+
 ## 1.2.0 - 2026-10-08
 
 - Added Aseprite JSON animation inspection and manifests.

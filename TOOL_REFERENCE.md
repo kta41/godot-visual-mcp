@@ -40,6 +40,22 @@ when `GODOT_PROJECT_ROOT` is configured.
 | `compare_asset_images(left, right)` | Return a normalized pixel difference. |
 | `deduplicate_asset_images(paths)` | Group byte-identical images. |
 | `list_generation_history()` | List local generation metadata. |
+| `discover_projects_tool(search_root, max_depth?)` | Discover nearby Godot projects without following symlinks. |
+| `select_project_tool(project_root?, alias?)` | Select a validated project for project-aware operations. |
+| `set_project_alias_tool(alias, project_root)` | Register an in-memory project alias. |
+| `list_project_aliases_tool()` | List aliases in the current MCP process. |
+| `inspect_audio_asset(path)` | Inspect WAV, OGG, or MP3 metadata. |
+| `inspect_font_asset(path)` | Inspect TTF or OTF family and style metadata. |
+| `inspect_svg_asset(path)` | Validate SVG XML and report dimensions and viewBox. |
+| `convert_svg_asset(source, output, overwrite?)` | Convert validated SVG to PNG with optional CairoSVG. |
+| `inspect_3d_asset_tool(path)` | Inspect GLTF or GLB structure and references. |
+| `inspect_json_asset_tool(path)` | Parse a bounded JSON resource safely. |
+
+MCP resources include `godot://project/assets`, `godot://project/state`,
+`godot://catalog/palettes`, `godot://catalog/workflows`,
+`godot://project/history`, and `godot://docs/tools`. MCP prompts include
+`prototype_character`, `create_ui_pack`, `prepare_sprite_animation`,
+`generate_and_validate_asset`, and `audit_godot_project`.
 
 Mutating tools include `data.verification` with the resulting path, metadata,
 validation status, and import-readiness. `generate_asset` additionally reports

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+from importlib.resources import files
 from typing import Any
 
 import httpx
@@ -17,7 +19,15 @@ from godot_visual_mcp.assets import validate_asset as validate_image
 from godot_visual_mcp.assets import verify_asset as verify_image
 from godot_visual_mcp.comfyui import generate_asset as generate_asset_engine
 from godot_visual_mcp.comfyui import remove_background as remove_background_engine
-from godot_visual_mcp.filesystem import GodotProject, ProjectPathError
+from godot_visual_mcp.extended_assets import (
+    convert_svg_to_png,
+    inspect_3d_asset,
+    inspect_audio,
+    inspect_font,
+    inspect_json_asset,
+    inspect_svg,
+)
+from godot_visual_mcp.filesystem import GodotProject
 from godot_visual_mcp.godot import (
     discover_project,
     find_asset_references,
@@ -31,6 +41,13 @@ from godot_visual_mcp.history import find_cached_generation, read_history, recor
 from godot_visual_mcp.processing import apply_palette as apply_palette_asset
 from godot_visual_mcp.processing import generate_spritesheet as generate_spritesheet_asset
 from godot_visual_mcp.processing import list_palettes as list_available_palettes
+from godot_visual_mcp.projects import (
+    discover_projects,
+    list_project_aliases,
+    project_for_resources,
+    select_project,
+    set_project_alias,
+)
 from godot_visual_mcp.scenes import add_sprite_to_scene as add_sprite_scene
 from godot_visual_mcp.scenes import create_scene as create_scene_asset
 from godot_visual_mcp.scenes import create_sprite_frames as create_frames_asset
@@ -52,7 +69,7 @@ mcp = FastMCP("godot-visual-mcp")
 def _project(root: str | None) -> GodotProject:
     project_root = root or os.environ.get("GODOT_PROJECT_ROOT")
     if not project_root:
-        raise ProjectPathError("project_root is required or GODOT_PROJECT_ROOT must be set")
+        return project_for_resources()
     return GodotProject(project_root)
 
 
@@ -566,6 +583,201 @@ def remove_background(
         ))
     except (OSError, ValueError, RuntimeError) as exc:
         return _failure(exc)
+
+
+@mcp.tool
+def discover_projects_tool(search_root: str, max_depth: int = 2) -> dict[str, Any]:
+    """Discover nearby Godot projects without following symlinks."""
+    try:
+        projects = discover_projects(search_root, max_depth=max_depth)
+        if len(projects) > 1:
+            return _success({"projects": projects, "ambiguous": True})
+        return _success({"projects": projects, "ambiguous": False})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def select_project_tool(
+    project_root: str | None = None, alias: str | None = None
+) -> dict[str, Any]:
+    """Select a validated Godot project for project-aware tools and resources."""
+    try:
+        return _success(select_project(project_root, alias))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def set_project_alias_tool(alias: str, project_root: str) -> dict[str, Any]:
+    """Create an in-memory alias for a validated Godot project."""
+    try:
+        return _success(set_project_alias(alias, project_root))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def list_project_aliases_tool() -> dict[str, Any]:
+    """List project aliases configured in this MCP process."""
+    return _success(list_project_aliases())
+
+
+@mcp.tool
+def inspect_audio_asset(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Inspect WAV, OGG, or MP3 metadata offline."""
+    try:
+        return _success(inspect_audio(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def inspect_font_asset(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Inspect a TTF or OTF font without installing or executing it."""
+    try:
+        return _success(inspect_font(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def inspect_svg_asset(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Validate SVG XML and report dimensions without external references."""
+    try:
+        return _success(inspect_svg(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def convert_svg_asset(
+    source: str,
+    output: str,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Convert a validated SVG to PNG using an optional offline converter."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, convert_svg_to_png(
+            project, source, output, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def inspect_3d_asset_tool(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Inspect GLTF or GLB structure and referenced resources."""
+    try:
+        return _success(inspect_3d_asset(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def inspect_json_asset_tool(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Inspect a bounded JSON resource without executing its contents."""
+    try:
+        return _success(inspect_json_asset(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+def _resource_json(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+
+
+@mcp.resource("godot://project/assets", name="project_assets", mime_type="application/json")
+def project_assets_resource() -> str:
+    """Return the selected project's asset inventory."""
+    try:
+        return _resource_json({"status": "ok", "assets": project_for_resources().iter_assets()})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _resource_json({"status": "error", "error": str(exc)})
+
+
+@mcp.resource("godot://project/state", name="project_state", mime_type="application/json")
+def project_state_resource() -> str:
+    """Return selected project metadata."""
+    try:
+        project = project_for_resources()
+        return _resource_json({"status": "ok", "project": discover_project(project.root)})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _resource_json({"status": "error", "error": str(exc)})
+
+
+@mcp.resource("godot://catalog/palettes", name="palette_catalog", mime_type="application/json")
+def palette_catalog_resource() -> str:
+    """Return the built-in palette catalog."""
+    try:
+        return _resource_json({"status": "ok", "palettes": list_available_palettes()})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _resource_json({"status": "error", "error": str(exc)})
+
+
+@mcp.resource("godot://catalog/workflows", name="workflow_catalog", mime_type="application/json")
+def workflow_catalog_resource() -> str:
+    """Return packaged ComfyUI workflow names."""
+    try:
+        directory = files("godot_visual_mcp.resources").joinpath("workflows")
+        names = sorted(item.name.removesuffix(".json") for item in directory.iterdir() if item.name.endswith(".json"))
+        return _resource_json({"status": "ok", "workflows": names})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _resource_json({"status": "error", "error": str(exc)})
+
+
+@mcp.resource("godot://project/history", name="generation_history", mime_type="application/json")
+def generation_history_resource() -> str:
+    """Return the selected project's generation history."""
+    try:
+        return _resource_json({"status": "ok", "entries": read_history(project_for_resources())})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _resource_json({"status": "error", "error": str(exc)})
+
+
+@mcp.resource("godot://docs/tools", name="tool_documentation", mime_type="text/plain")
+def tool_documentation_resource() -> str:
+    """Describe the high-level MCP surface."""
+    return (
+        "Project: discover_projects_tool, select_project_tool, set_project_alias_tool\n"
+        "Images: inspect_asset, validate_asset, generate_spritesheet, apply_palette\n"
+        "Godot: inspect_project, verify_import, validate_scene, find_references\n"
+        "Generation: generate_asset, remove_background, list_generation_history\n"
+        "Other assets: inspect_audio_asset, inspect_font_asset, inspect_svg_asset,\n"
+        "  convert_svg_asset, inspect_3d_asset_tool, inspect_json_asset_tool"
+    )
+
+
+@mcp.prompt(name="prototype_character")
+def prototype_character_prompt(style: str = "pixel art") -> str:
+    """Guide an agent through a safe character prototype."""
+    return f"Create a {style} character: generate an asset, validate it, and prepare a SpriteFrames scene."
+
+
+@mcp.prompt(name="create_ui_pack")
+def create_ui_pack_prompt(theme: str = "clean") -> str:
+    """Guide an agent through a small UI asset pack."""
+    return f"Create a {theme} UI pack with icons and panels, apply a consistent palette, and validate every asset."
+
+
+@mcp.prompt(name="prepare_sprite_animation")
+def prepare_sprite_animation_prompt(animation: str = "idle") -> str:
+    """Guide an agent through preparing a sprite animation."""
+    return f"Prepare the {animation} animation from its frames, preserve ordering and tags, and validate the manifest."
+
+
+@mcp.prompt(name="generate_and_validate_asset")
+def generate_and_validate_asset_prompt(description: str) -> str:
+    """Guide an agent through generation and validation."""
+    return f"Generate this asset: {description}. Validate its output, dimensions, format, and project references."
+
+
+@mcp.prompt(name="audit_godot_project")
+def audit_godot_project_prompt() -> str:
+    """Guide an agent through a project audit."""
+    return "Inspect the selected Godot project, validate scenes and imports, find unused assets, and report actionable issues."
 
 
 def main() -> None:
