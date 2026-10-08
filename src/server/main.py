@@ -1,16 +1,19 @@
-"""FastMCP stdio server for the v0.2 Godot asset tools."""
+"""FastMCP stdio server for the v0.3 Godot asset tools."""
 
 from __future__ import annotations
 
 import os
 from typing import Any
 
+import httpx
 from fastmcp import FastMCP
 
 from godot_visual_mcp.assets import create_placeholder as create_placeholder_asset
 from godot_visual_mcp.assets import inspect_asset as inspect_image
 from godot_visual_mcp.assets import list_assets as list_project_assets
 from godot_visual_mcp.assets import validate_asset as validate_image
+from godot_visual_mcp.comfyui import generate_asset as generate_asset_engine
+from godot_visual_mcp.comfyui import remove_background as remove_background_engine
 from godot_visual_mcp.filesystem import GodotProject, ProjectPathError
 from godot_visual_mcp.processing import apply_palette as apply_palette_asset
 from godot_visual_mcp.processing import generate_spritesheet as generate_spritesheet_asset
@@ -132,6 +135,63 @@ def list_palettes() -> dict[str, Any]:
     try:
         return _success(list_available_palettes())
     except (OSError, ValueError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+async def generate_asset(
+    prompt: str,
+    workflow: str,
+    output: str,
+    width: int = 512,
+    height: int = 512,
+    seed: int | None = None,
+    batch: int = 1,
+    remove_background: bool = False,
+    crop: bool = True,
+    overwrite: bool = False,
+    timeout: float = 300.0,
+    endpoint: str | None = None,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Generate an asset through ComfyUI, post-process it, and validate res:// output."""
+    try:
+        return _success(
+            await generate_asset_engine(
+                _project(project_root),
+                prompt,
+                workflow,
+                output,
+                endpoint=endpoint,
+                width=width,
+                height=height,
+                seed=seed,
+                batch=batch,
+                remove_background_enabled=remove_background,
+                crop=crop,
+                overwrite=overwrite,
+                timeout=timeout,
+            )
+        )
+    except (OSError, ValueError, RuntimeError, httpx.HTTPError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def remove_background(
+    source: str,
+    output: str,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Remove an image background using the optional rembg AI extra."""
+    try:
+        return _success(
+            remove_background_engine(
+                _project(project_root), source, output, overwrite=overwrite
+            )
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
         return _failure(exc)
 
 
