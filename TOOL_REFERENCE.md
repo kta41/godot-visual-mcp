@@ -28,6 +28,18 @@ when `GODOT_PROJECT_ROOT` is configured.
 | `create_sprite_frames(output, frames, ...)` | Create a SpriteFrames resource. |
 | `find_references(asset)` | Find text resources referencing an asset. |
 | `find_unused()` | Find unreferenced image assets. |
+| `inspect_aseprite(path)` | Inspect Aseprite-exported JSON frames and tags. |
+| `create_animation_manifest(source, output)` | Create a project-local animation manifest. |
+| `resize_asset_tool(source, output, width, height)` | Resize with pixel-perfect nearest-neighbor by default. |
+| `crop_asset_tool(source, output, padding?)` | Crop transparent borders. |
+| `normalize_asset_tool(source, output)` | Normalize content on the original canvas. |
+| `generate_thumbnail_tool(source, output, size?)` | Generate a bounded thumbnail. |
+| `transform_asset_colors(source, output, operation)` | Apply grayscale, brightness, or contrast. |
+| `flip_asset_tool(source, output, horizontal?)` | Flip an image. |
+| `rotate_asset_tool(source, output, degrees)` | Rotate by 90, 180, or 270 degrees. |
+| `compare_asset_images(left, right)` | Return a normalized pixel difference. |
+| `deduplicate_asset_images(paths)` | Group byte-identical images. |
+| `list_generation_history()` | List local generation metadata. |
 
 Mutating tools include `data.verification` with the resulting path, metadata,
 validation status, and import-readiness. `generate_asset` additionally reports

@@ -6,3 +6,5 @@ __pycache__/
 *.egg-info/
 MANUAL_INSTALACION_ES.md
 dist/
+ROADMAP.md
+ROADMAP_2.md

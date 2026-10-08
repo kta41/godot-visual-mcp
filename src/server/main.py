@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 from fastmcp import FastMCP
 
+from godot_visual_mcp.aseprite import create_animation_manifest as create_manifest
+from godot_visual_mcp.aseprite import inspect_aseprite_json
 from godot_visual_mcp.assets import create_placeholder as create_placeholder_asset
 from godot_visual_mcp.assets import inspect_asset as inspect_image
 from godot_visual_mcp.assets import list_assets as list_project_assets
@@ -25,12 +27,24 @@ from godot_visual_mcp.godot import (
 from godot_visual_mcp.godot import (
     validate_scene as validate_godot_scene,
 )
+from godot_visual_mcp.history import find_cached_generation, read_history, record_generation
 from godot_visual_mcp.processing import apply_palette as apply_palette_asset
 from godot_visual_mcp.processing import generate_spritesheet as generate_spritesheet_asset
 from godot_visual_mcp.processing import list_palettes as list_available_palettes
 from godot_visual_mcp.scenes import add_sprite_to_scene as add_sprite_scene
 from godot_visual_mcp.scenes import create_scene as create_scene_asset
 from godot_visual_mcp.scenes import create_sprite_frames as create_frames_asset
+from godot_visual_mcp.visual import (
+    compare_assets,
+    crop_asset,
+    deduplicate_assets,
+    flip_asset,
+    generate_thumbnail,
+    normalize_asset,
+    resize_asset,
+    rotate_asset,
+    transform_colors,
+)
 
 mcp = FastMCP("godot-visual-mcp")
 
@@ -271,6 +285,192 @@ def create_sprite_frames(
         return _failure(exc)
 
 
+@mcp.tool
+def inspect_aseprite(path: str, project_root: str | None = None) -> dict[str, Any]:
+    """Inspect Aseprite-exported JSON frames and animation tags."""
+    try:
+        return _success(inspect_aseprite_json(_project(project_root), path))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def create_animation_manifest(
+    source: str,
+    output: str,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Convert Aseprite animation tags into a project-local manifest."""
+    try:
+        return _success(create_manifest(_project(project_root), source, output, overwrite=overwrite))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def resize_asset_tool(
+    source: str,
+    output: str,
+    width: int,
+    height: int,
+    pixel_perfect: bool = True,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Resize an image with nearest-neighbor pixel-art scaling by default."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, resize_asset(
+            project, source, output, width, height,
+            pixel_perfect=pixel_perfect, overwrite=overwrite,
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def crop_asset_tool(
+    source: str,
+    output: str,
+    padding: int = 0,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Crop transparent borders while preserving a configurable padding."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, crop_asset(
+            project, source, output, padding=padding, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def normalize_asset_tool(
+    source: str,
+    output: str,
+    center: bool = True,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Normalize transparent bounds on the original canvas."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, normalize_asset(
+            project, source, output, center=center, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def generate_thumbnail_tool(
+    source: str,
+    output: str,
+    size: int = 128,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Generate a bounded pixel-art thumbnail."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, generate_thumbnail(
+            project, source, output, size, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def transform_asset_colors(
+    source: str,
+    output: str,
+    operation: str,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Apply grayscale, contrast, or brightness offline."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, transform_colors(
+            project, source, output, operation, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def flip_asset_tool(
+    source: str,
+    output: str,
+    horizontal: bool = True,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Flip an image horizontally or vertically."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, flip_asset(
+            project, source, output, horizontal=horizontal, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def rotate_asset_tool(
+    source: str,
+    output: str,
+    degrees: int,
+    overwrite: bool = False,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Rotate an image by 90, 180, or 270 degrees."""
+    try:
+        project = _project(project_root)
+        return _success(_verified(project, rotate_asset(
+            project, source, output, degrees, overwrite=overwrite
+        )))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def compare_asset_images(
+    left: str,
+    right: str,
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Compare two image assets and return a normalized pixel difference."""
+    try:
+        return _success(compare_assets(_project(project_root), left, right))
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def deduplicate_asset_images(
+    paths: list[str],
+    project_root: str | None = None,
+) -> dict[str, Any]:
+    """Group byte-identical image assets."""
+    try:
+        return _success({"groups": deduplicate_assets(_project(project_root), paths)})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
+def list_generation_history(project_root: str | None = None) -> dict[str, Any]:
+    """List local generation metadata without binary content or credentials."""
+    try:
+        return _success({"entries": read_history(_project(project_root))})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
 def _verified_scene(project: GodotProject, data: dict[str, object]) -> dict[str, object]:
     path = data.get("path")
     if not isinstance(path, str):
@@ -298,13 +498,32 @@ async def generate_asset(
     timeout: float = 300.0,
     retries: int = 0,
     validate_workflow: bool = False,
+    use_cache: bool = False,
     endpoint: str | None = None,
     project_root: str | None = None,
 ) -> dict[str, Any]:
     """Generate an asset through ComfyUI, post-process it, and validate res:// output."""
     try:
         project = _project(project_root)
-        return _success(_verified(
+        parameters = {
+            "prompt": prompt,
+            "workflow": workflow,
+            "output": output,
+            "width": width,
+            "height": height,
+            "seed": seed,
+            "batch": batch,
+            "remove_background": remove_background,
+            "crop": crop,
+            "endpoint": endpoint,
+        }
+        if use_cache:
+            cached = find_cached_generation(project, parameters)
+            if cached is not None:
+                data = dict(cached["result"])
+                data["cache_hit"] = True
+                return _success(_verified(project, data))
+        data = _verified(
             project,
             await generate_asset_engine(
                 project,
@@ -323,7 +542,10 @@ async def generate_asset(
                 retries=retries,
                 validate_workflow=validate_workflow,
             ),
-        ))
+        )
+        record_generation(project, parameters, data)
+        data["cache_hit"] = False
+        return _success(data)
     except (OSError, ValueError, RuntimeError, httpx.HTTPError) as exc:
         return _failure(exc)
 
