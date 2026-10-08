@@ -1,0 +1,33 @@
+[project]
+name = "godot-visual-mcp"
+version = "0.2.0"
+description = "A secure, offline-first MCP server for Godot asset prototyping."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastmcp>=2.0,<3.0",
+  "Pillow>=10.0,<12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0,<9.0",
+  "ruff>=0.8,<1.0",
+  "mypy>=1.13,<2.0",
+]
+
+[project.scripts]
+godot-visual-mcp = "server.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
