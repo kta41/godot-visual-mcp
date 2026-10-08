@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .limits import ensure_project_quota
+
 
 class ProjectPathError(ValueError):
     """Raised when a path cannot be safely mapped into the project."""
@@ -70,6 +72,8 @@ class GodotProject:
             raise FileAlreadyExistsError(
                 f"Asset already exists: {self.validate_asset_path(res_path)}; set overwrite=true"
             )
+        existing_size = path.stat().st_size if path.is_file() else 0
+        ensure_project_quota(self.root, len(content) - existing_size)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.ensure_inside_project(path)
         path.write_bytes(content)

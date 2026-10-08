@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import uuid
 from importlib.resources import files
 from typing import Any
 
@@ -38,6 +40,7 @@ from godot_visual_mcp.godot import (
     validate_scene as validate_godot_scene,
 )
 from godot_visual_mcp.history import find_cached_generation, read_history, record_generation
+from godot_visual_mcp.limits import safety_limits
 from godot_visual_mcp.processing import apply_palette as apply_palette_asset
 from godot_visual_mcp.processing import generate_spritesheet as generate_spritesheet_asset
 from godot_visual_mcp.processing import list_palettes as list_available_palettes
@@ -64,6 +67,7 @@ from godot_visual_mcp.visual import (
 )
 
 mcp = FastMCP("godot-visual-mcp")
+logger = logging.getLogger("godot_visual_mcp")
 
 
 def _project(root: str | None) -> GodotProject:
@@ -78,7 +82,28 @@ def _success(data: Any) -> dict[str, Any]:
 
 
 def _failure(exc: Exception) -> dict[str, Any]:
-    return {"status": "error", "data": None, "warnings": [], "errors": [str(exc)]}
+    correlation_id = uuid.uuid4().hex
+    code = getattr(exc, "code", "MCP_OPERATION_FAILED")
+    retryable = bool(getattr(exc, "retryable", False))
+    logger.error(
+        "operation_failed correlation_id=%s code=%s retryable=%s error=%s",
+        correlation_id,
+        code,
+        retryable,
+        type(exc).__name__,
+    )
+    return {
+        "status": "error",
+        "data": None,
+        "warnings": [],
+        "errors": [{
+            "code": code,
+            "message": str(exc),
+            "retryable": retryable,
+            "suggestion": "Review the inputs and configured operation limits.",
+            "correlation_id": correlation_id,
+        }],
+    }
 
 
 def _verified(project: GodotProject, data: Any) -> dict[str, Any]:
@@ -521,6 +546,11 @@ async def generate_asset(
 ) -> dict[str, Any]:
     """Generate an asset through ComfyUI, post-process it, and validate res:// output."""
     try:
+        limits = safety_limits()
+        if timeout <= 0 or timeout > limits.max_operation_seconds:
+            raise ValueError(
+                f"timeout must be between 0 and {limits.max_operation_seconds} seconds"
+            )
         project = _project(project_root)
         parameters = {
             "prompt": prompt,

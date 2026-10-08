@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 - 2026-10-08
+
+- Added configurable input, image, batch, operation-time, and project-quota limits.
+- Added structured errors with stable codes, retryability, suggestions, and correlation IDs.
+- Migrated development, CI, Docker, and locked environments from pip to uv.
+
 ## 1.3.0 - 2026-10-08
 
 - Added safe project discovery, selection, aliases, MCP resources, and prompts.

@@ -9,6 +9,8 @@ All tools return:
 All paths are project-relative `res://` paths. `project_root` may be omitted
 when `GODOT_PROJECT_ROOT` is configured.
 
+Development environments use `uv sync` and commands run through `uv run`.
+
 | Tool | Purpose |
 | --- | --- |
 | `inspect_asset(path)` | Read image format, dimensions, alpha, color mode, and frames. |

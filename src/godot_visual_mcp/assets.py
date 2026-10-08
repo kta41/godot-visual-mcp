@@ -8,6 +8,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 
 from .filesystem import GodotProject
+from .limits import ensure_image_dimensions, ensure_input_size
 
 SUPPORTED_FORMATS = {"PNG", "JPEG", "WEBP", "BMP", "GIF", "TIFF"}
 
@@ -24,8 +25,10 @@ def _frame_count(width: int, height: int) -> int:
 def inspect_asset(project: GodotProject, path: str) -> dict[str, Any]:
     """Return compact metadata suitable for an agent."""
     data = project.safe_read(path)
+    ensure_input_size(len(data))
     try:
         with Image.open(io.BytesIO(data)) as image:
+            ensure_image_dimensions(image.width, image.height)
             has_alpha = "A" in image.getbands() or "transparency" in image.info
             return {
                 "path": project.validate_asset_path(path),

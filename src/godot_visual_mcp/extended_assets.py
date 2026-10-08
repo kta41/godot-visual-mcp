@@ -13,12 +13,12 @@ from typing import Any
 from PIL import ImageFont
 
 from .filesystem import GodotProject
+from .limits import ensure_input_size
 
 
 def _read(project: GodotProject, path: str) -> bytes:
     data = project.safe_read(path)
-    if len(data) > 64 * 1024 * 1024:
-        raise ValueError("Asset exceeds the 64 MiB inspection limit")
+    ensure_input_size(len(data))
     return data
 
 

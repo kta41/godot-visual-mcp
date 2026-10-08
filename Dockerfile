@@ -1,11 +1,12 @@
 FROM python:3.11-slim
 
 WORKDIR /app
-COPY pyproject.toml README.md LICENSE ./
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 COPY palettes ./palettes
 COPY workflows ./workflows
-RUN pip install --no-cache-dir .
+RUN uv sync --frozen --no-dev
 
 ENV PYTHONUNBUFFERED=1
-ENTRYPOINT ["python", "-m", "server.main"]
+ENTRYPOINT ["uv", "run", "--no-dev", "python", "-m", "server.main"]

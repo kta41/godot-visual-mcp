@@ -16,6 +16,7 @@ from PIL import Image
 
 from .assets import inspect_asset, validate_asset
 from .filesystem import GodotProject
+from .limits import ensure_batch, ensure_image_dimensions, ensure_input_size, safety_limits
 
 
 class ComfyUIError(RuntimeError):
@@ -268,6 +269,7 @@ async def _sleep(seconds: float) -> None:
 
 
 def _write_image(project: GodotProject, output: str, data: bytes, *, overwrite: bool) -> str:
+    ensure_input_size(len(data))
     try:
         with Image.open(io.BytesIO(data)) as image:
             image.load()
@@ -298,7 +300,7 @@ def remove_background(project: GodotProject, source: str, output: str, *, overwr
     try:
         from rembg import remove
     except ImportError as exc:
-        raise ComfyUIError("Background removal requires the optional 'ai' extra: pip install .[ai]") from exc
+        raise ComfyUIError("Background removal requires the optional 'ai' extra: uv sync --extra ai") from exc
     try:
         result = remove(project.safe_read(source))
     except (OSError, RuntimeError, ValueError) as exc:
@@ -329,8 +331,12 @@ async def generate_asset(
     """Generate one asset, optionally post-process it, and validate the res:// result."""
     if not prompt.strip():
         raise ValueError("prompt must be non-empty")
-    if width <= 0 or height <= 0 or batch <= 0:
-        raise ValueError("width, height, and batch must be positive")
+    ensure_image_dimensions(width, height)
+    ensure_batch(batch)
+    if timeout <= 0 or timeout > safety_limits().max_operation_seconds:
+        raise ValueError(
+            f"timeout must be between 0 and {safety_limits().max_operation_seconds} seconds"
+        )
     workflow = _replace_parameters(
         load_workflow(workflow_name),
         {"prompt": prompt, "width": width, "height": height, "seed": seed or 0, "batch": batch},

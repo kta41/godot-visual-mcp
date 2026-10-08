@@ -13,9 +13,13 @@ Empower your LLM agents (Cline, Roo Code, Copilot) to inspect, generate, and tra
 
 Requires Python 3.11+. The core profile runs entirely offline and has no heavy AI or GPU dependencies.
 
-```bash
+```
+
+The project uses `uv.lock` for reproducible environments. Configurable safety
+limits include `MCP_MAX_INPUT_BYTES`, `MCP_MAX_PIXELS`, `MCP_MAX_FRAMES`,
+`MCP_MAX_BATCH`, `MCP_MAX_OPERATION_SECONDS`, and `MCP_MAX_PROJECT_BYTES`.bash
 # Install core tools and development dependencies
-python -m pip install -e ".[dev]"
+uv sync
 
 # Run the server (requires Godot project path)
 GODOT_PROJECT_ROOT=/path/to/my-godot-project python -m server.main
@@ -55,7 +59,7 @@ All tool responses use a standard envelope format (`status` / `data` / `warnings
 The core installation intentionally omits heavy AI dependencies. To enable generative workflows and background removal, install the `[ai]` profile:
 
 ```bash
-python -m pip install -e ".[ai]"
+uv sync --extra ai
 ```
 
 Configure your local ComfyUI instance via environment variables or pass the endpoint directly to the `generate_asset` tool:
@@ -85,10 +89,10 @@ Run the test suite and code quality checks using standard Python tooling:
 
 ```bash
 # Run unit tests
-python -m pytest
+uv run pytest
 
 # Run linter
-ruff check .
+uv run ruff check .
 ```
 
 ---

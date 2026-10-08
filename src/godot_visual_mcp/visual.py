@@ -10,11 +10,15 @@ from PIL import Image, ImageChops, ImageEnhance
 
 from .assets import inspect_asset
 from .filesystem import GodotProject
+from .limits import ensure_image_dimensions, ensure_input_size
 
 
 def _load(project: GodotProject, path: str) -> Image.Image:
     try:
-        with Image.open(io.BytesIO(project.safe_read(path))) as image:
+        data = project.safe_read(path)
+        ensure_input_size(len(data))
+        with Image.open(io.BytesIO(data)) as image:
+            ensure_image_dimensions(image.width, image.height)
             converted = cast(Image.Image, image.convert("RGBA"))
             converted.load()
             return converted
