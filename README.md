@@ -1,64 +1,96 @@
+<div align="center">
+  
 # godot-visual-mcp
 
-Secure, offline-first asset tools for Godot exposed through a Model Context
-Protocol (MCP) server.
+> Secure, offline-first asset tools for Godot exposed through a Model Context Protocol (MCP) server.
 
-## v1.0 quickstart
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg) ![Godot](https://img.shields.io/badge/Godot-4.x-478CBF?logo=godotengine&logoColor=white) ![Protocol](https://img.shields.io/badge/Protocol-MCP-8A2BE2) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-Install the core profile with Python 3.11+:
+Empower your LLM agents (Cline, Roo Code, Copilot) to inspect, generate, and transform visual assets directly within your Godot Engine project. Engineered with strict filesystem sandboxing, this server securely translates agent reasoning into your game's `res://` pipeline.
+</div>
+
+## 🚀 Quickstart
+
+Requires Python 3.11+. The core profile runs entirely offline and has no heavy AI or GPU dependencies.
 
 ```bash
+# Install core tools and development dependencies
 python -m pip install -e ".[dev]"
+
+# Run the server (requires Godot project path)
 GODOT_PROJECT_ROOT=/path/to/my-godot-project python -m server.main
 ```
 
-The server uses stdio, so configure an MCP client to launch
-`python -m server.main`. Every asset path is interpreted as `res://...` and is
-resolved and checked against the configured project root. Absolute paths,
-parent traversal, and symlink escapes are rejected. Existing files are not
-overwritten unless a tool explicitly receives `overwrite=true`.
+### Client Configuration (stdio)
+Configure your MCP client to launch the server via `stdio`. Every asset path provided by the agent is automatically interpreted as relative to the `res://` directory and resolved against your configured `GODOT_PROJECT_ROOT`.
 
-The v0.2 tools are `inspect_asset`, `list_assets`, `validate_asset`,
-`create_placeholder`, `generate_spritesheet`, `apply_palette`, and
-`list_palettes`. v0.3 adds `generate_asset` and `remove_background`.
-Their responses use the envelope
-`status / data / warnings / errors` and never expose stack traces to the agent.
-
-Spritesheets are assembled offline from equal-sized frames. Palette processing
-ships with Game Boy, PICO-8, and custom JSON palettes and supports RGB or LAB
-distance matching while preserving alpha values.
-
-### ComfyUI
-
-The core installation does not install AI dependencies. Configure ComfyUI with
-`COMFYUI_ENDPOINT` (default `http://127.0.0.1:8188`) or pass `endpoint` to
-`generate_asset`. Workflows are local JSON resources in `workflows/`; prompts,
-dimensions, seed, and batch are injected without storing credentials.
-
-```bash
-python -m pip install -e ".[dev]"
-python -m pip install -e ".[ai]"  # optional, only for remove_background
+```json
+{
+  "mcpServers": {
+    "godot-visual-mcp": {
+      "command": "python",
+      "args": ["-m", "server.main"],
+      "env": {
+        "GODOT_PROJECT_ROOT": "/path/to/my-godot-project"
+      }
+    }
+  }
+}
 ```
 
-Generation submits a workflow, polls without a fixed completion assumption,
-retrieves the first output image, optionally removes its background, crops
-transparent borders, writes to `res://`, and validates the result. CPU-only
-machines can use ComfyUI's configured CPU backend; no CUDA dependency is
-required by this project.
+## 🧰 Available Tools
 
-## Release documentation
+All tool responses use a standard envelope format (`status` / `data` / `warnings` / `errors`) ensuring LLM agents never receive raw, unhandled stack traces. 
 
-- [Security model](SECURITY.md)
-- [Tool reference](TOOL_REFERENCE.md)
-- [Changelog](CHANGELOG.md)
+**Core Tools (v0.2):**
+*   **Inspection:** `inspect_asset`, `list_assets`, `validate_asset`
+*   **Prototyping:** `create_placeholder`, `generate_spritesheet` (assembled offline from equal-sized frames)
+*   **Palette Engine:** `apply_palette`, `list_palettes` (ships with Game Boy, PICO-8, and custom JSON palettes. Supports RGB/LAB distance matching while preserving alpha channels).
 
-The optional [Dockerfile](Dockerfile) and [compose.yaml](compose.yaml) provide
-an isolated core container and an opt-in ComfyUI profile. The core profile has
-no GPU or AI runtime requirement.
+**Generative AI Tools (v0.3):**
+*   **Generation & Cleaning:** `generate_asset`, `remove_background`
 
-Run tests and lint:
+## 🧠 ComfyUI Integration (Optional)
+
+The core installation intentionally omits heavy AI dependencies. To enable generative workflows and background removal, install the `[ai]` profile:
 
 ```bash
+python -m pip install -e ".[ai]"
+```
+
+Configure your local ComfyUI instance via environment variables or pass the endpoint directly to the `generate_asset` tool:
+`COMFYUI_ENDPOINT=http://127.0.0.1:8188`
+
+**How generation works:**
+1. The tool submits a local JSON workflow (located in `workflows/`).
+2. Prompts, dimensions, seeds, and batch sizes are injected dynamically (credentials are never stored).
+3. The MCP polls without fixed completion assumptions.
+4. The output is retrieved, background is removed (if requested), transparent borders are cropped, and the final asset is written safely to `res://`.
+5. *Note: CPU-only machines can use ComfyUI's CPU backend; this project does not strictly require CUDA.*
+
+## 🛡️ Security Model
+
+Security and directory integrity are core design principles:
+*   **Strict Sandboxing:** All operations are strictly bound to the configured `GODOT_PROJECT_ROOT`.
+*   **Path Validation:** Absolute paths, parent directory traversal (`../`), and symlink escapes are aggressively rejected.
+*   **Non-Destructive by Default:** Existing files are never overwritten unless a tool explicitly receives the `overwrite=true` parameter from the agent.
+
+## 🐳 Docker Deployment
+
+The project includes an optional `Dockerfile` and `compose.yaml` to provide an isolated core container and an opt-in ComfyUI profile. The default core container has no GPU or AI runtime requirements, keeping the footprint minimal.
+
+## 🛠️ Development & Testing
+
+Run the test suite and code quality checks using standard Python tooling:
+
+```bash
+# Run unit tests
 python -m pytest
+
+# Run linter
 ruff check .
 ```
+
+---
+
+**Documentation:** [Security Model](SECURITY.md) | [Tool Reference](TOOL_REFERENCE.md) | [Changelog](CHANGELOG.md)
