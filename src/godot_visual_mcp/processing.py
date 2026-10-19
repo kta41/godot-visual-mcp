@@ -13,6 +13,7 @@ from PIL import Image
 
 from .assets import inspect_asset
 from .filesystem import GodotProject
+from .limits import ensure_frames, ensure_image_dimensions, ensure_input_size
 
 RGB = tuple[int, int, int]
 Palette = list[RGB]
@@ -21,13 +22,18 @@ DistanceMetric = Callable[[tuple[float, float, float], tuple[float, float, float
 
 def _load_image(project: GodotProject, path: str) -> Image.Image:
     try:
-        image = Image.open(io.BytesIO(project.safe_read(path)))
-        return image.convert("RGBA")
-    except (OSError, ValueError) as exc:
+        data = project.safe_read(path)
+        ensure_input_size(len(data))
+        with Image.open(io.BytesIO(data)) as image:
+            ensure_image_dimensions(image.width, image.height)
+            image.load()
+            return image.convert("RGBA")
+    except OSError as exc:
         raise ValueError(f"Unsupported or corrupt image: {path}") from exc
 
 
 def _save_png(project: GodotProject, output: str, image: Image.Image, *, overwrite: bool) -> str:
+    ensure_image_dimensions(image.width, image.height)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=False)
     return project.safe_write(output, buffer.getvalue(), overwrite=overwrite)
@@ -104,6 +110,7 @@ def generate_spritesheet(
     paths = list(inputs)
     if not paths:
         raise ValueError("At least one input frame is required")
+    ensure_frames(len(paths))
     if columns <= 0:
         raise ValueError("columns must be positive")
     images = [_load_image(project, path) for path in paths]
@@ -111,6 +118,7 @@ def generate_spritesheet(
     if any(image.size != size for image in images):
         raise ValueError("All input frames must have identical dimensions")
     rows = math.ceil(len(images) / columns)
+    ensure_image_dimensions(size[0] * columns, size[1] * rows)
     sheet = Image.new("RGBA", (size[0] * columns, size[1] * rows), (0, 0, 0, 0))
     for index, image in enumerate(images):
         sheet.paste(image, ((index % columns) * size[0], (index // columns) * size[1]))
@@ -146,7 +154,9 @@ def apply_palette(
     palette = load_palette(palette_name)
     metric = _metric(distance_metric)
     transformed = Image.new("RGBA", image.size)
-    source_pixels = list(image.getdata())
+    source_pixels = cast(
+        Iterable[tuple[int, int, int, int]], image.get_flattened_data()
+    )
     output_pixels: list[tuple[int, int, int, int]] = []
     converted_palette = [
         _rgb_to_lab(color)

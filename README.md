@@ -15,7 +15,12 @@ Requires Python 3.11+. The core profile runs entirely offline and has no heavy A
 
 The project uses `uv.lock` for reproducible environments. Configurable safety
 limits include `MCP_MAX_INPUT_BYTES`, `MCP_MAX_PIXELS`, `MCP_MAX_FRAMES`,
-`MCP_MAX_BATCH`, `MCP_MAX_OPERATION_SECONDS`, and `MCP_MAX_PROJECT_BYTES`.
+`MCP_MAX_BATCH`, `MCP_MAX_AUDIO_SECONDS`, `MCP_MAX_OPERATION_SECONDS`, and
+`MCP_MAX_PROJECT_BYTES`.
+Set `GODOT_BIN` to configure the Godot executable used for headless checks.
+For multi-project work, set `GODOT_ALLOWED_PROJECT_ROOTS` to comma-separated
+parent directories. Discovery, selection, aliases, and asset tools are limited
+to projects beneath `GODOT_PROJECT_ROOT` or those additional roots.
 
 ```bash
 # Install core tools and development dependencies
@@ -208,8 +213,12 @@ The core installation intentionally omits heavy AI dependencies. To enable gener
 uv sync --extra ai
 ```
 
-Configure your local ComfyUI instance via environment variables or pass the endpoint directly to the `generate_asset` tool:
-`COMFYUI_ENDPOINT=http://127.0.0.1:8188`
+Configure ComfyUI with `COMFYUI_ENDPOINT` (default:
+`http://127.0.0.1:8188`). Additional approved endpoints can be listed as a
+comma-separated `COMFYUI_ALLOWED_ENDPOINTS`. An endpoint passed to the tool is
+accepted only when it matches one of these operator-configured values; agents
+cannot redirect requests to arbitrary hosts. Configure remote endpoints only
+when they are trusted.
 
 **How generation works:**
 1. The tool submits a local JSON workflow (located in `workflows/`).
@@ -263,6 +272,13 @@ uv run pytest
 
 # Run linter
 uv run ruff check .
+```
+
+An optional live schema check can run against a local ComfyUI instance:
+
+```bash
+COMFYUI_INTEGRATION_ENDPOINT=http://127.0.0.1:8188 \
+  uv run pytest tests/test_comfyui.py -k live_workflow_schema
 ```
 
 ---

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .assets import inspect_asset
 from .filesystem import GodotProject
+from .limits import ensure_frames
 
 
 def create_scene(
@@ -74,6 +75,7 @@ def create_sprite_frames(
     """Create a SpriteFrames resource from texture paths."""
     if not frames:
         raise ValueError("At least one frame is required")
+    ensure_frames(len(frames))
     if fps <= 0 or not animation.isidentifier():
         raise ValueError("animation must be an identifier and fps must be positive")
     resources: list[str] = []

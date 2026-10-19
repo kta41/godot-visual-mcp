@@ -16,7 +16,9 @@ filesystem or shell interface.
    not claim to have run a tool that is unavailable.
 2. Identify the intended Godot project. Use `inspect_project` for a known
    project or `discover_projects_tool` followed by `select_project_tool` when
-   discovery is needed. If the target is ambiguous, ask the user to choose.
+  discovery is needed. Discovery is limited to operator-configured roots. If
+  the target is ambiguous or outside those roots, ask the user to choose or
+  configure an allowed root.
 3. Use `res://` paths inside the selected project. Never try to bypass the
    server sandbox with direct filesystem or shell operations for asset work.
 4. Inspect relevant inputs before transforming them. Preserve existing files;

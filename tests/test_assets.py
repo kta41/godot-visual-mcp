@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from godot_visual_mcp.assets import create_placeholder, inspect_asset, validate_asset, verify_asset
@@ -13,6 +14,22 @@ def test_placeholder_dimensions_and_frames(tmp_path: Path) -> None:
     with Image.open(tmp_path / "assets/p.png") as image:
         assert image.size == (96, 16)
         assert image.mode == "RGBA"
+
+
+def test_placeholder_obeys_configured_frame_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MCP_MAX_FRAMES", "2")
+    with pytest.raises(ValueError, match="frame limit"):
+        create_placeholder(GodotProject(tmp_path), "res://too-many.png", 8, 8, 3)
+
+
+def test_placeholder_obeys_total_pixel_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MCP_MAX_PIXELS", "100")
+    with pytest.raises(ValueError, match="pixel limit"):
+        create_placeholder(GodotProject(tmp_path), "res://too-large.png", 11, 10, 1)
 
 
 def test_inspection_detects_alpha_and_sprite_frames(tmp_path: Path) -> None:

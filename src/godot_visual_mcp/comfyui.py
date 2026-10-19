@@ -9,7 +9,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 from PIL import Image
@@ -17,6 +17,89 @@ from PIL import Image
 from .assets import inspect_asset, validate_asset
 from .filesystem import GodotProject
 from .limits import ensure_batch, ensure_image_dimensions, ensure_input_size, safety_limits
+
+DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8188"
+
+
+def _normalize_endpoint(endpoint: str) -> str:
+    try:
+        parsed = urlsplit(endpoint.strip())
+        port = parsed.port
+    except (AttributeError, ValueError) as exc:
+        raise ComfyUIError("Invalid ComfyUI endpoint URL", code="ENDPOINT_INVALID") from exc
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ComfyUIError(
+            "ComfyUI endpoint must be an HTTP(S) URL without credentials, query, or fragment",
+            code="ENDPOINT_INVALID",
+        )
+    hostname = parsed.hostname.lower()
+    netloc = f"[{hostname}]" if ":" in hostname else hostname
+    default_port = 80 if parsed.scheme.lower() == "http" else 443
+    if port is not None and port != default_port:
+        netloc = f"{netloc}:{port}"
+    path = parsed.path.rstrip("/")
+    return urlunsplit((parsed.scheme.lower(), netloc, path, "", ""))
+
+
+def _resolve_comfyui_endpoint(requested: str | None) -> str:
+    configured = os.environ.get("COMFYUI_ENDPOINT", DEFAULT_COMFYUI_ENDPOINT)
+    configured_endpoint = _normalize_endpoint(configured)
+    allowed = {configured_endpoint}
+    allowed.update(
+        _normalize_endpoint(item)
+        for item in os.environ.get("COMFYUI_ALLOWED_ENDPOINTS", "").split(",")
+        if item.strip()
+    )
+    if requested is None:
+        return configured_endpoint
+    requested_endpoint = _normalize_endpoint(requested)
+    if requested_endpoint not in allowed:
+        raise ComfyUIError(
+            "ComfyUI endpoint is not configured; set COMFYUI_ENDPOINT or add it to "
+            "COMFYUI_ALLOWED_ENDPOINTS",
+            code="ENDPOINT_NOT_ALLOWED",
+        )
+    return requested_endpoint
+
+
+async def _read_bounded_response(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    **kwargs: Any,
+) -> bytes:
+    limit = safety_limits().max_input_bytes
+    async with client.stream(method, url, **kwargs) as response:
+        response.raise_for_status()
+        content_length = response.headers.get("content-length")
+        if content_length is not None:
+            try:
+                declared_size = int(content_length)
+            except ValueError as exc:
+                raise ComfyUIError(
+                    "ComfyUI returned an invalid content length", code="RESPONSE_INVALID"
+                ) from exc
+            if declared_size > limit:
+                raise ComfyUIError(
+                    f"ComfyUI response exceeds the {limit} byte limit",
+                    code="RESPONSE_TOO_LARGE",
+                )
+        content = bytearray()
+        async for chunk in response.aiter_bytes():
+            if len(content) + len(chunk) > limit:
+                raise ComfyUIError(
+                    f"ComfyUI response exceeds the {limit} byte limit",
+                    code="RESPONSE_TOO_LARGE",
+                )
+            content.extend(chunk)
+        return bytes(content)
 
 
 class ComfyUIError(RuntimeError):
@@ -70,7 +153,7 @@ class ComfyUIClient:
         client: httpx.AsyncClient | None = None,
         timeout: float = 30.0,
     ) -> None:
-        self.endpoint = (endpoint or os.environ.get("COMFYUI_ENDPOINT", "http://127.0.0.1:8188")).rstrip("/")
+        self.endpoint = _resolve_comfyui_endpoint(endpoint)
         self.client = client
         self.timeout = timeout
 
@@ -98,25 +181,55 @@ class ComfyUIClient:
         http_client, owns_client = self._client()
         try:
             try:
-                response = await http_client.get(f"{self.endpoint}/object_info")
-                response.raise_for_status()
-                object_info = response.json()
+                response_content = await _read_bounded_response(
+                    http_client, "GET", f"{self.endpoint}/object_info"
+                )
+                object_info = json.loads(response_content)
             except (httpx.HTTPError, ValueError) as exc:
                 raise ComfyUIError(
                     f"Could not validate workflow against ComfyUI: {exc}",
                     code="WORKFLOW_SCHEMA_UNAVAILABLE",
                     retryable=True,
                 ) from exc
-            missing = [
-                str(node.get("class_type"))
-                for node in workflow.values()
-                if isinstance(node, dict)
-                and isinstance(node.get("class_type"), str)
-                and node["class_type"] not in object_info
-            ]
-            if missing:
+            if not isinstance(object_info, dict):
                 raise ComfyUIError(
-                    f"Workflow uses unavailable nodes: {', '.join(sorted(set(missing)))}",
+                    "ComfyUI returned an invalid workflow schema",
+                    code="WORKFLOW_SCHEMA_INVALID",
+                )
+            issues: list[str] = []
+            for node_id, node in workflow.items():
+                if not isinstance(node, dict) or not isinstance(node.get("class_type"), str):
+                    issues.append(f"{node_id}: missing class_type")
+                    continue
+                class_type = node["class_type"]
+                node_schema = object_info.get(class_type)
+                if not isinstance(node_schema, dict):
+                    issues.append(f"{node_id}: unavailable node {class_type}")
+                    continue
+                node_inputs = node.get("inputs")
+                if not isinstance(node_inputs, dict):
+                    issues.append(f"{node_id}: inputs must be an object")
+                    continue
+                input_schema = node_schema.get("input", {})
+                required_inputs = input_schema.get("required", {}) if isinstance(input_schema, dict) else {}
+                if not isinstance(required_inputs, dict):
+                    issues.append(f"{node_id}: invalid required-input schema")
+                    continue
+                for input_name, specification in required_inputs.items():
+                    if input_name not in node_inputs or node_inputs[input_name] is None:
+                        issues.append(f"{node_id}: missing required input {input_name}")
+                        continue
+                    if isinstance(specification, list) and len(specification) > 1:
+                        details = specification[1]
+                        options = details.get("options") if isinstance(details, dict) else None
+                        value = node_inputs[input_name]
+                        if isinstance(options, list) and not isinstance(value, list) and value not in options:
+                            issues.append(
+                                f"{node_id}: {input_name} value {value!r} is not installed or supported"
+                            )
+            if issues:
+                raise ComfyUIError(
+                    f"Workflow preflight failed: {'; '.join(issues[:20])}",
                     code="WORKFLOW_INVALID",
                 )
             return {"valid": True, "nodes": len(workflow)}
@@ -129,12 +242,13 @@ class ComfyUIClient:
         http_client, owns_client = self._client()
         try:
             try:
-                response = await http_client.post(
+                response_content = await _read_bounded_response(
+                    http_client,
+                    "POST",
                     f"{self.endpoint}/prompt",
                     json={"prompt": workflow, "client_id": client_id},
                 )
-                response.raise_for_status()
-                prompt_id = response.json()["prompt_id"]
+                prompt_id = json.loads(response_content)["prompt_id"]
                 if not isinstance(prompt_id, str) or not prompt_id:
                     raise TypeError("prompt_id must be a non-empty string")
                 return prompt_id
@@ -153,8 +267,12 @@ class ComfyUIClient:
         http_client, owns_client = self._client()
         try:
             try:
-                response = await http_client.post(f"{self.endpoint}/interrupt", json={"prompt_id": prompt_id})
-                response.raise_for_status()
+                await _read_bounded_response(
+                    http_client,
+                    "POST",
+                    f"{self.endpoint}/interrupt",
+                    json={"prompt_id": prompt_id},
+                )
             except httpx.HTTPError as exc:
                 raise ComfyUIError(f"Could not cancel ComfyUI job: {exc}", code="CANCEL_FAILED") from exc
         finally:
@@ -177,17 +295,20 @@ class ComfyUIClient:
             attempt = 0
             while True:
                 try:
-                    response = await http_client.post(
-                        f"{self.endpoint}/prompt", json={"prompt": workflow, "client_id": client_id}
+                    response_content = await _read_bounded_response(
+                        http_client,
+                        "POST",
+                        f"{self.endpoint}/prompt",
+                        json={"prompt": workflow, "client_id": client_id},
                     )
-                    response.raise_for_status()
-                    prompt_id = response.json()["prompt_id"]
+                    prompt_id = json.loads(response_content)["prompt_id"]
                     deadline = time.monotonic() + timeout
                     while time.monotonic() < deadline:
                         try:
-                            history_response = await http_client.get(f"{self.endpoint}/history/{prompt_id}")
-                            history_response.raise_for_status()
-                            history = history_response.json().get(prompt_id)
+                            history_content = await _read_bounded_response(
+                                http_client, "GET", f"{self.endpoint}/history/{prompt_id}"
+                            )
+                            history = json.loads(history_content).get(prompt_id)
                         except (httpx.HTTPError, AttributeError, TypeError, ValueError) as exc:
                             raise ComfyUIError(
                                 f"Could not read ComfyUI job status: {exc}",
@@ -240,9 +361,9 @@ class ComfyUIClient:
             }
         )
         try:
-            result = await client.get(f"{self.endpoint}/view?{query}")
-            result.raise_for_status()
-            return result.content
+            return await _read_bounded_response(
+                client, "GET", f"{self.endpoint}/view?{query}"
+            )
         except httpx.HTTPError as exc:
             raise ComfyUIError(f"Could not retrieve generated image: {exc}", code="RETRIEVE_FAILED") from exc
 
@@ -277,6 +398,7 @@ def _write_image(project: GodotProject, output: str, data: bytes, *, overwrite: 
     ensure_input_size(len(data))
     try:
         with Image.open(io.BytesIO(data)) as image:
+            ensure_image_dimensions(image.width, image.height)
             image.load()
             png = image.convert("RGBA")
             buffer = io.BytesIO()
@@ -288,7 +410,10 @@ def _write_image(project: GodotProject, output: str, data: bytes, *, overwrite: 
 
 def _remove_transparent_border(project: GodotProject, path: str, *, overwrite: bool) -> None:
     try:
-        with Image.open(io.BytesIO(project.safe_read(path))) as source:
+        data = project.safe_read(path)
+        ensure_input_size(len(data))
+        with Image.open(io.BytesIO(data)) as source:
+            ensure_image_dimensions(source.width, source.height)
             image = source.convert("RGBA")
             bbox = image.getchannel("A").getbbox()
             if bbox:

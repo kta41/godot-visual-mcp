@@ -9,9 +9,11 @@ from godot_visual_mcp.limits import safety_limits
 def test_limits_can_be_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MCP_MAX_BATCH", "3")
     monkeypatch.setenv("MCP_MAX_PIXELS", "100")
+    monkeypatch.setenv("MCP_MAX_AUDIO_SECONDS", "45")
     limits = safety_limits()
     assert limits.max_batch == 3
     assert limits.max_pixels == 100
+    assert limits.max_audio_seconds == 45
 
 
 def test_project_quota_rejects_large_write(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

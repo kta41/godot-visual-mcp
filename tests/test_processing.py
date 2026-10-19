@@ -16,6 +16,26 @@ def test_generate_spritesheet_rejects_mismatched_frames(tmp_path: Path) -> None:
         generate_spritesheet(project, ["res://a.png", "res://b.png"], "res://sheet.png", 2)
 
 
+def test_generate_spritesheet_obeys_frame_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MCP_MAX_FRAMES", "1")
+    with pytest.raises(ValueError, match="frame limit"):
+        generate_spritesheet(
+            GodotProject(tmp_path), ["res://a.png", "res://b.png"], "res://sheet.png", 2
+        )
+
+
+def test_palette_processing_obeys_input_byte_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = GodotProject(tmp_path)
+    create_placeholder(project, "res://source.png", 8, 8)
+    monkeypatch.setenv("MCP_MAX_INPUT_BYTES", "1")
+    with pytest.raises(ValueError, match="byte limit"):
+        apply_palette(project, "res://source.png", "res://mapped.png", "gameboy")
+
+
 def test_generate_spritesheet_creates_uniform_grid(tmp_path: Path) -> None:
     project = GodotProject(tmp_path)
     for name in ("a", "b", "c"):

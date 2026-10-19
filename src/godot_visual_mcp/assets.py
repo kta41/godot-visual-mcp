@@ -8,7 +8,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 
 from .filesystem import GodotProject
-from .limits import ensure_image_dimensions, ensure_input_size
+from .limits import ensure_frames, ensure_image_dimensions, ensure_input_size
 
 SUPPORTED_FORMATS = {"PNG", "JPEG", "WEBP", "BMP", "GIF", "TIFF"}
 
@@ -29,6 +29,8 @@ def inspect_asset(project: GodotProject, path: str) -> dict[str, Any]:
     try:
         with Image.open(io.BytesIO(data)) as image:
             ensure_image_dimensions(image.width, image.height)
+            frame_count = getattr(image, "n_frames", 1)
+            ensure_frames(frame_count)
             has_alpha = "A" in image.getbands() or "transparency" in image.info
             return {
                 "path": project.validate_asset_path(path),
@@ -36,7 +38,7 @@ def inspect_asset(project: GodotProject, path: str) -> dict[str, Any]:
                 "width": image.width,
                 "height": image.height,
                 "has_alpha": has_alpha,
-                "frames": getattr(image, "n_frames", 1),
+                "frames": frame_count,
                 "sprite_frames": _frame_count(image.width, image.height),
                 "color_mode": image.mode,
             }
@@ -105,8 +107,8 @@ def create_placeholder(
     """Create a labeled, deterministic RGBA placeholder spritesheet."""
     if width <= 0 or height <= 0 or frames <= 0:
         raise ValueError("width, height, and frames must be positive integers")
-    if frames > 128:
-        raise ValueError("frames must be 128 or fewer")
+    ensure_frames(frames)
+    ensure_image_dimensions(width * frames, height)
     image = Image.new("RGBA", (width * frames, height), (38, 42, 54, 255))
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default()

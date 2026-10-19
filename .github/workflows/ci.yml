@@ -5,6 +5,20 @@ on:
   pull_request:
 
 jobs:
+  pillow-latest:
+    name: Latest supported Pillow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: true
+      - run: uv venv --python 3.13 .venv
+      - name: Install project with latest supported Pillow
+        run: uv pip install --python .venv/bin/python -e ".[dev]" "Pillow>=12.3,<13"
+      - run: .venv/bin/python -m pytest
+
   checks:
     runs-on: ubuntu-latest
     strategy:
@@ -21,6 +35,12 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy src
       - run: uv run pytest
+      - name: Validate Agent Skill
+        if: matrix.python-version == '3.11'
+        run: |
+          git clone --no-checkout https://github.com/agentskills/agentskills.git /tmp/agentskills
+          git -C /tmp/agentskills checkout f130f348f502d9804278a617f86929846896d2e9
+          uv run --project /tmp/agentskills/skills-ref skills-ref validate skills/godot-visual-mcp
       - run: uv build --out-dir dist
       - name: Validate wheel installation
         run: |

@@ -27,6 +27,7 @@ def _load(project: GodotProject, path: str) -> Image.Image:
 
 
 def _save(project: GodotProject, output: str, image: Image.Image, *, overwrite: bool) -> str:
+    ensure_image_dimensions(image.width, image.height)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=False)
     return project.safe_write(output, buffer.getvalue(), overwrite=overwrite)
@@ -59,6 +60,7 @@ def resize_asset(
     """Resize an image using nearest-neighbor by default for pixel art."""
     if width <= 0 or height <= 0:
         raise ValueError("width and height must be positive")
+    ensure_image_dimensions(width, height)
     image = _load(project, source)
     before = inspect_asset(project, source)
     resized = image.resize((width, height), Image.Resampling.NEAREST if pixel_perfect else Image.Resampling.LANCZOS)

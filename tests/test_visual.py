@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from godot_visual_mcp.filesystem import GodotProject
@@ -28,6 +29,16 @@ def test_resize_crop_and_thumbnail_report_before_after(tmp_path: Path) -> None:
     assert resized["after"]["width"] == 64
     assert cropped["after"]["width"] == 16
     assert thumbnail["after"]["width"] <= 8
+
+
+def test_resize_rejects_output_over_pixel_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = GodotProject(tmp_path)
+    save_image(tmp_path / "source.png", (2, 2))
+    monkeypatch.setenv("MCP_MAX_PIXELS", "16")
+    with pytest.raises(ValueError, match="pixel limit"):
+        resize_asset(project, "res://source.png", "res://large.png", 5, 5)
 
 
 def test_compare_and_deduplicate(tmp_path: Path) -> None:

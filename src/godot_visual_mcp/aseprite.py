@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .filesystem import GodotProject
+from .limits import ensure_frames, ensure_input_size
 
 
 def inspect_aseprite_json(project: GodotProject, source: str) -> dict[str, Any]:
@@ -14,7 +15,9 @@ def inspect_aseprite_json(project: GodotProject, source: str) -> dict[str, Any]:
     if Path(source).suffix.lower() != ".json":
         raise ValueError("Aseprite metadata must be a .json file")
     try:
-        payload = json.loads(project.safe_read(source).decode("utf-8"))
+        data = project.safe_read(source)
+        ensure_input_size(len(data))
+        payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Invalid Aseprite JSON: {source}") from exc
     frames = payload.get("frames")
@@ -24,6 +27,7 @@ def inspect_aseprite_json(project: GodotProject, source: str) -> dict[str, Any]:
         frame_names = [str(item.get("filename", index)) for index, item in enumerate(frames)]
     else:
         raise TypeError("Aseprite JSON has no frames")
+    ensure_frames(len(frame_names))
     tags = payload.get("meta", {}).get("frameTags", [])
     if not isinstance(tags, list):
         raise TypeError("Aseprite frameTags must be a list")

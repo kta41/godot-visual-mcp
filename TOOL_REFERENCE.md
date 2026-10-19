@@ -23,7 +23,7 @@ Development environments use `uv sync` and commands run through `uv run`.
 | `generate_asset(prompt, workflow, output, ...)` | Generate through ComfyUI and validate the result. |
 | `remove_background(source, output, overwrite?)` | Optional `rembg` background removal. |
 | `inspect_project()` | Inspect `project.godot` and detect the Godot binary. |
-| `verify_import()` | Run Godot headless when available and report import diagnostics. |
+| `verify_import()` | Run the configured/discovered Godot binary headlessly within the operation timeout and report import diagnostics. |
 | `validate_scene(path)` | Validate a `.tscn` and its `res://` references. |
 | `create_scene(output, ...)` | Create a controlled Godot scene. |
 | `add_sprite_to_scene(scene, texture, ...)` | Add a Sprite2D or AnimatedSprite2D. |

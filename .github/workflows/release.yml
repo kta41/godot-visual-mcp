@@ -10,6 +10,7 @@ permissions:
   contents: write
   id-token: write
   packages: write
+  attestations: write
 
 jobs:
   prepare:
@@ -69,6 +70,10 @@ jobs:
           path: .
           artifact-name: SBOM.spdx.json
           output-file: dist/SBOM.spdx.json
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
       - name: Upload release artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -117,11 +122,18 @@ jobs:
             type=raw,value=${{ needs.prepare.outputs.version }}
             type=raw,value=latest
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Attest container image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   github-release:
     name: Create GitHub release

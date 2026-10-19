@@ -7,6 +7,7 @@ import logging
 import os
 import uuid
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -29,10 +30,11 @@ from godot_visual_mcp.extended_assets import (
     inspect_json_asset,
     inspect_svg,
 )
-from godot_visual_mcp.filesystem import GodotProject
+from godot_visual_mcp.filesystem import GodotProject, ProjectPathError
 from godot_visual_mcp.godot import (
     discover_project,
     find_asset_references,
+    find_godot_binary,
     find_unused_assets,
     verify_godot_import,
 )
@@ -49,6 +51,7 @@ from godot_visual_mcp.projects import (
     list_project_aliases,
     project_for_resources,
     select_project,
+    selected_project_root,
     set_project_alias,
 )
 from godot_visual_mcp.scenes import add_sprite_to_scene as add_sprite_scene
@@ -70,11 +73,42 @@ mcp = FastMCP("godot-visual-mcp")
 logger = logging.getLogger("godot_visual_mcp")
 
 
+def _ensure_allowed_project_root(root: str | os.PathLike[str]) -> Path:
+    candidate = Path(root).expanduser().resolve()
+    configured_roots = [
+        value
+        for value in (
+            os.environ.get("GODOT_PROJECT_ROOT"),
+            *os.environ.get("GODOT_ALLOWED_PROJECT_ROOTS", "").split(","),
+        )
+        if value and value.strip()
+    ]
+    allowed_roots = [Path(value).expanduser().resolve() for value in configured_roots]
+    selected = selected_project_root()
+    if not allowed_roots and selected is not None:
+        allowed_roots.append(selected.resolve())
+    if not allowed_roots:
+        raise ProjectPathError(
+            "Set GODOT_PROJECT_ROOT or GODOT_ALLOWED_PROJECT_ROOTS before selecting projects"
+        )
+    for allowed_root in allowed_roots:
+        try:
+            candidate.relative_to(allowed_root)
+            return candidate
+        except ValueError:
+            continue
+    raise ProjectPathError("Project path is outside the operator-configured allowed roots")
+
+
 def _project(root: str | None) -> GodotProject:
     project_root = root or os.environ.get("GODOT_PROJECT_ROOT")
     if not project_root:
-        return project_for_resources()
-    return GodotProject(project_root)
+        project = project_for_resources()
+    else:
+        project = GodotProject(_ensure_allowed_project_root(project_root))
+    _ensure_allowed_project_root(project.root)
+    discover_project(project.root)
+    return project
 
 
 def _success(data: Any) -> dict[str, Any]:
@@ -236,8 +270,18 @@ def verify_import(
 ) -> dict[str, Any]:
     """Open the project with Godot headlessly and report import readiness."""
     try:
+        limits = safety_limits()
+        if timeout <= 0 or timeout > limits.max_operation_seconds:
+            raise ValueError(
+                f"timeout must be between 0 and {limits.max_operation_seconds} seconds"
+            )
+        configured_binary = find_godot_binary()
+        if godot_binary is not None:
+            requested_binary = find_godot_binary(godot_binary)
+            if requested_binary != configured_binary:
+                raise ValueError("Configure GODOT_BIN on the server; the tool cannot select executables")
         return _success(verify_godot_import(
-            _project(project_root).root, godot_binary=godot_binary, timeout=timeout
+            _project(project_root).root, godot_binary=configured_binary, timeout=timeout
         ))
     except (OSError, ValueError, RuntimeError) as exc:
         return _failure(exc)
@@ -619,7 +663,8 @@ def remove_background(
 def discover_projects_tool(search_root: str, max_depth: int = 2) -> dict[str, Any]:
     """Discover nearby Godot projects without following symlinks."""
     try:
-        projects = discover_projects(search_root, max_depth=max_depth)
+        allowed_search_root = _ensure_allowed_project_root(search_root)
+        projects = discover_projects(allowed_search_root, max_depth=max_depth)
         if len(projects) > 1:
             return _success({"projects": projects, "ambiguous": True})
         return _success({"projects": projects, "ambiguous": False})
@@ -633,6 +678,12 @@ def select_project_tool(
 ) -> dict[str, Any]:
     """Select a validated Godot project for project-aware tools and resources."""
     try:
+        if project_root is not None:
+            project_root = str(_ensure_allowed_project_root(project_root))
+        elif alias is not None:
+            alias_root = list_project_aliases().get(alias)
+            if alias_root is not None:
+                _ensure_allowed_project_root(alias_root)
         return _success(select_project(project_root, alias))
     except (OSError, ValueError, RuntimeError) as exc:
         return _failure(exc)
@@ -642,6 +693,7 @@ def select_project_tool(
 def set_project_alias_tool(alias: str, project_root: str) -> dict[str, Any]:
     """Create an in-memory alias for a validated Godot project."""
     try:
+        project_root = str(_ensure_allowed_project_root(project_root))
         return _success(set_project_alias(alias, project_root))
     except (OSError, ValueError, RuntimeError) as exc:
         return _failure(exc)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .limits import ensure_project_quota
+from .limits import ensure_input_size, ensure_project_quota, safety_limits
 
 
 class ProjectPathError(ValueError):
@@ -63,7 +63,10 @@ class GodotProject:
         path = self.resolve_res_path(res_path)
         if not path.is_file():
             raise FileNotFoundError(f"Asset does not exist: {self.validate_asset_path(res_path)}")
-        return path.read_bytes()
+        with path.open("rb") as source:
+            content = source.read(safety_limits().max_input_bytes + 1)
+        ensure_input_size(len(content))
+        return content
 
     def safe_write(self, res_path: str, content: bytes, *, overwrite: bool = False) -> str:
         """Write bytes inside the project; overwriting requires explicit opt-in."""
@@ -76,7 +79,16 @@ class GodotProject:
         ensure_project_quota(self.root, len(content) - existing_size)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.ensure_inside_project(path)
-        path.write_bytes(content)
+        if overwrite:
+            path.write_bytes(content)
+        else:
+            try:
+                with path.open("xb") as destination:
+                    destination.write(content)
+            except FileExistsError as exc:
+                raise FileAlreadyExistsError(
+                    f"Asset already exists: {self.validate_asset_path(res_path)}; set overwrite=true"
+                ) from exc
         return self.validate_asset_path(res_path)
 
     def iter_assets(self) -> list[str]:

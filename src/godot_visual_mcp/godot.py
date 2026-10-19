@@ -35,7 +35,7 @@ def discover_project(root: str | os.PathLike[str]) -> dict[str, Any]:
     project_file = project.root / "project.godot"
     if not project_file.is_file():
         raise ProjectPathError(f"Not a Godot project: {project.root}")
-    content = project_file.read_text(encoding="utf-8", errors="replace")
+    content = project.safe_read("res://project.godot").decode("utf-8", errors="replace")
     config = _parse_project_config(content)
     return {
         "root": str(project.root),

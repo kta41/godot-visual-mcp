@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ class SafetyLimits:
     max_pixels: int = 16_777_216
     max_frames: int = 128
     max_batch: int = 16
+    max_audio_seconds: int = 3600
     max_operation_seconds: int = 600
     max_project_bytes: int = 2 * 1024 * 1024 * 1024
 
@@ -37,6 +39,9 @@ def safety_limits() -> SafetyLimits:
         max_pixels=_positive_env("MCP_MAX_PIXELS", SafetyLimits.max_pixels),
         max_frames=_positive_env("MCP_MAX_FRAMES", SafetyLimits.max_frames),
         max_batch=_positive_env("MCP_MAX_BATCH", SafetyLimits.max_batch),
+        max_audio_seconds=_positive_env(
+            "MCP_MAX_AUDIO_SECONDS", SafetyLimits.max_audio_seconds
+        ),
         max_operation_seconds=_positive_env(
             "MCP_MAX_OPERATION_SECONDS", SafetyLimits.max_operation_seconds
         ),
@@ -60,6 +65,20 @@ def ensure_batch(batch: int) -> None:
     """Reject oversized generation batches."""
     if batch <= 0 or batch > safety_limits().max_batch:
         raise ValueError(f"batch must be between 1 and {safety_limits().max_batch}")
+
+
+def ensure_frames(count: int) -> None:
+    """Reject inputs that contain more frames than the configured limit."""
+    limit = safety_limits().max_frames
+    if count > limit:
+        raise ValueError(f"Frame count exceeds the {limit} frame limit")
+
+
+def ensure_audio_duration(duration_seconds: float) -> None:
+    """Reject audio whose known duration exceeds the configured limit."""
+    limit = safety_limits().max_audio_seconds
+    if not math.isfinite(duration_seconds) or duration_seconds < 0 or duration_seconds > limit:
+        raise ValueError(f"Audio duration exceeds the {limit} second limit")
 
 
 def ensure_project_quota(root: Path, incoming_bytes: int) -> None:
