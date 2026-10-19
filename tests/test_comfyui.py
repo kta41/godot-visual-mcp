@@ -17,6 +17,25 @@ def image_bytes() -> bytes:
 
 
 @pytest.mark.asyncio
+async def test_comfyui_submit_returns_prompt_id() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"prompt_id": "job-1"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        prompt_id = await ComfyUIClient("http://comfy", client=client).submit(
+            {"node": {"class_type": "Test"}}, client_id="test-client"
+        )
+
+    assert prompt_id == "job-1"
+    assert len(requests) == 1
+    assert requests[0].url.path == "/prompt"
+    assert requests[0].read() == b'{"prompt":{"node":{"class_type":"Test"}},"client_id":"test-client"}'
+
+
+@pytest.mark.asyncio
 async def test_comfyui_submit_poll_and_retrieve() -> None:
     requests: list[httpx.Request] = []
 

@@ -129,9 +129,14 @@ class ComfyUIClient:
         http_client, owns_client = self._client()
         try:
             try:
-                prompt_id = await self.submit(workflow, client_id=client_id)
-                if not isinstance(prompt_id, str):
-                    raise TypeError("prompt_id must be a string")
+                response = await http_client.post(
+                    f"{self.endpoint}/prompt",
+                    json={"prompt": workflow, "client_id": client_id},
+                )
+                response.raise_for_status()
+                prompt_id = response.json()["prompt_id"]
+                if not isinstance(prompt_id, str) or not prompt_id:
+                    raise TypeError("prompt_id must be a non-empty string")
                 return prompt_id
             except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
                 raise ComfyUIError(

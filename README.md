@@ -42,6 +42,25 @@ Configure your MCP client to launch the server via `stdio`. Every asset path pro
 }
 ```
 
+### Portable Agent Skill
+
+The repository includes an [Agent Skill](skills/godot-visual-mcp/SKILL.md)
+with safe workflows for using the server's Godot asset tools. It follows the
+open Agent Skills format; client-specific Skill discovery and MCP server
+configuration are separate, so check the instructions for your agent.
+
+For Claude Code, copy the Skill into the Godot project's `.claude/skills/`
+directory (or your personal `~/.claude/skills/` directory):
+
+```bash
+mkdir -p /path/to/godot-project/.claude/skills/godot-visual-mcp
+cp -R /path/to/godot-visual-mcp/skills/godot-visual-mcp/. \
+  /path/to/godot-project/.claude/skills/godot-visual-mcp/
+```
+
+For other Agent Skills-compatible clients, use their documented discovery or
+installation procedure. This does not configure the MCP server itself.
+
 ## 🧰 Available Tools
 
 All tool responses use a standard envelope format (`status` / `data` / `warnings` / `errors`) ensuring LLM agents never receive raw, unhandled stack traces. 
