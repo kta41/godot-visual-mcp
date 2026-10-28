@@ -1,0 +1,79 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "${ckpt_name}"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "${lora_name}",
+      "strength_model": "${lora_strength_model}",
+      "strength_clip": "${lora_strength_clip}"
+    }
+  },
+  "2b": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["2", 0],
+      "clip": ["2", 1],
+      "lora_name": "${secondary_lora_name}",
+      "strength_model": "${secondary_lora_strength_model}",
+      "strength_clip": "${secondary_lora_strength_clip}"
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "2d game character sprite with dual style and character LoRAs, full body, ${prompt}, consistent design and color palette, isolated on solid background",
+      "clip": ["2b", 1]
+    }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": "${width}",
+      "height": "${height}",
+      "batch_size": "${batch}"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "cropped limbs, inconsistent style, cluttered background, blurry, photorealistic, watermark, text, ${negative_prompt}",
+      "clip": ["2b", 1]
+    }
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["2b", 0],
+      "seed": "${seed}",
+      "steps": "${steps}",
+      "cfg": "${cfg}",
+      "sampler_name": "${sampler_name}",
+      "scheduler": "${scheduler}",
+      "positive": ["3", 0],
+      "negative": ["5", 0],
+      "latent_image": ["4", 0],
+      "denoise": "${denoise}"
+    }
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "8": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["7", 0],
+      "filename_prefix": "godot_lora_dual_style_character"
+    }
+  }
+}

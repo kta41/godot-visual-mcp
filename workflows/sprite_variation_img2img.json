@@ -1,0 +1,92 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "${ckpt_name}"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "${lora_name}",
+      "strength_model": "${lora_strength_model}",
+      "strength_clip": "${lora_strength_clip}"
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "2d game sprite variation, preserve original silhouette and proportions, ${prompt}, clean edges, isolated on solid flat background",
+      "clip": ["2", 1]
+    }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": "${width}",
+      "height": "${height}",
+      "batch_size": "${batch}"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "broken silhouette, misaligned pose, cluttered background, blurry, watermark, text, ${negative_prompt}",
+      "clip": ["2", 1]
+    }
+  },
+  "9": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "${input_image}"
+    }
+  },
+  "10": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["9", 0],
+      "upscale_method": "nearest-exact",
+      "width": "${width}",
+      "height": "${height}",
+      "crop": "disabled"
+    }
+  },
+  "11": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["10", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["2", 0],
+      "seed": "${seed}",
+      "steps": "${steps}",
+      "cfg": "${cfg}",
+      "sampler_name": "${sampler_name}",
+      "scheduler": "${scheduler}",
+      "positive": ["3", 0],
+      "negative": ["5", 0],
+      "latent_image": ["11", 0],
+      "denoise": "${denoise}"
+    }
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "8": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["7", 0],
+      "filename_prefix": "godot_sprite_variation_img2img"
+    }
+  }
+}

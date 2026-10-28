@@ -21,6 +21,7 @@ from godot_visual_mcp.assets import list_assets as list_project_assets
 from godot_visual_mcp.assets import validate_asset as validate_image
 from godot_visual_mcp.assets import verify_asset as verify_image
 from godot_visual_mcp.comfyui import generate_asset as generate_asset_engine
+from godot_visual_mcp.comfyui import list_workflows as list_available_workflows
 from godot_visual_mcp.comfyui import remove_background as remove_background_engine
 from godot_visual_mcp.extended_assets import (
     convert_svg_to_png,
@@ -570,6 +571,16 @@ def _verified_scene(project: GodotProject, data: dict[str, object]) -> dict[str,
 
 
 @mcp.tool
+def list_workflows(category: str | None = None) -> dict[str, Any]:
+    """List bundled ComfyUI 2D workflow templates and their Godot node recommendations."""
+    try:
+        entries = list_available_workflows(category=category)
+        return _success({"workflows": entries, "count": len(entries)})
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _failure(exc)
+
+
+@mcp.tool
 async def generate_asset(
     prompt: str,
     workflow: str,
@@ -578,8 +589,29 @@ async def generate_asset(
     height: int = 512,
     seed: int | None = None,
     batch: int = 1,
+    negative_prompt: str = "",
+    ckpt_name: str | None = None,
+    lora_name: str | None = None,
+    lora_strength_model: float = 1.0,
+    lora_strength_clip: float = 1.0,
+    secondary_lora_name: str | None = None,
+    secondary_lora_strength_model: float = 0.8,
+    secondary_lora_strength_clip: float = 0.8,
+    steps: int = 24,
+    cfg: float = 7.0,
+    sampler_name: str = "euler",
+    scheduler: str = "normal",
+    denoise: float | None = None,
+    input_image: str | None = None,
+    controlnet_name: str | None = None,
+    controlnet_strength: float = 1.0,
     remove_background: bool = False,
     crop: bool = True,
+    target_width: int | None = None,
+    target_height: int | None = None,
+    pixel_perfect: bool = True,
+    palette: str | None = None,
+    palette_distance_metric: str = "rgb",
     overwrite: bool = False,
     timeout: float = 300.0,
     retries: int = 0,
@@ -604,8 +636,29 @@ async def generate_asset(
             "height": height,
             "seed": seed,
             "batch": batch,
+            "negative_prompt": negative_prompt,
+            "ckpt_name": ckpt_name,
+            "lora_name": lora_name,
+            "lora_strength_model": lora_strength_model,
+            "lora_strength_clip": lora_strength_clip,
+            "secondary_lora_name": secondary_lora_name,
+            "secondary_lora_strength_model": secondary_lora_strength_model,
+            "secondary_lora_strength_clip": secondary_lora_strength_clip,
+            "steps": steps,
+            "cfg": cfg,
+            "sampler_name": sampler_name,
+            "scheduler": scheduler,
+            "denoise": denoise,
+            "input_image": input_image,
+            "controlnet_name": controlnet_name,
+            "controlnet_strength": controlnet_strength,
             "remove_background": remove_background,
             "crop": crop,
+            "target_width": target_width,
+            "target_height": target_height,
+            "pixel_perfect": pixel_perfect,
+            "palette": palette,
+            "palette_distance_metric": palette_distance_metric,
             "endpoint": endpoint,
         }
         if use_cache:
@@ -626,8 +679,29 @@ async def generate_asset(
                 height=height,
                 seed=seed,
                 batch=batch,
+                negative_prompt=negative_prompt,
+                ckpt_name=ckpt_name,
+                lora_name=lora_name,
+                lora_strength_model=lora_strength_model,
+                lora_strength_clip=lora_strength_clip,
+                secondary_lora_name=secondary_lora_name,
+                secondary_lora_strength_model=secondary_lora_strength_model,
+                secondary_lora_strength_clip=secondary_lora_strength_clip,
+                steps=steps,
+                cfg=cfg,
+                sampler_name=sampler_name,
+                scheduler=scheduler,
+                denoise=denoise,
+                input_image=input_image,
+                controlnet_name=controlnet_name,
+                controlnet_strength=controlnet_strength,
                 remove_background_enabled=remove_background,
                 crop=crop,
+                target_width=target_width,
+                target_height=target_height,
+                pixel_perfect=pixel_perfect,
+                palette=palette,
+                palette_distance_metric=palette_distance_metric,
                 overwrite=overwrite,
                 timeout=timeout,
                 retries=retries,
@@ -801,11 +875,17 @@ def palette_catalog_resource() -> str:
 
 @mcp.resource("godot://catalog/workflows", name="workflow_catalog", mime_type="application/json")
 def workflow_catalog_resource() -> str:
-    """Return packaged ComfyUI workflow names."""
+    """Return packaged ComfyUI workflow names and metadata."""
     try:
         directory = files("godot_visual_mcp.resources").joinpath("workflows")
         names = sorted(item.name.removesuffix(".json") for item in directory.iterdir() if item.name.endswith(".json"))
-        return _resource_json({"status": "ok", "workflows": names})
+        return _resource_json(
+            {
+                "status": "ok",
+                "workflows": names,
+                "catalog": list_available_workflows(),
+            }
+        )
     except (OSError, ValueError, RuntimeError) as exc:
         return _resource_json({"status": "error", "error": str(exc)})
 

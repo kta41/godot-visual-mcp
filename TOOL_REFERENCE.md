@@ -20,7 +20,8 @@ Development environments use `uv sync` and commands run through `uv run`.
 | `generate_spritesheet(inputs, output, columns, overwrite?)` | Assemble equal-sized frames into a grid. |
 | `apply_palette(source, output, palette, distance_metric?, overwrite?)` | Apply an offline palette with RGB or LAB matching. |
 | `list_palettes()` | List bundled JSON palettes. |
-| `generate_asset(prompt, workflow, output, ...)` | Generate through ComfyUI and validate the result. |
+| `list_workflows(category?)` | List the 28 bundled 2D ComfyUI workflow templates and their Godot node recommendations. |
+| `generate_asset(prompt, workflow, output, ...)` | Generate through ComfyUI (supporting LoRA, Dual-LoRA, Img2Img, ControlNet, pixel-perfect downscaling, and palette quantization) and validate the result. |
 | `remove_background(source, output, overwrite?)` | Optional `rembg` background removal. |
 | `inspect_project()` | Inspect `project.godot` and detect the Godot binary. |
 | `verify_import()` | Run the configured/discovered Godot binary headlessly within the operation timeout and report import diagnostics. |

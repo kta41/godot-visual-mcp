@@ -1,0 +1,93 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "${ckpt_name}"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "${lora_name}",
+      "strength_model": "${lora_strength_model}",
+      "strength_clip": "${lora_strength_clip}"
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "2d game sprite following exact pose and collision guide, ${prompt}, crisp silhouette, clean outlines, isolated on solid background",
+      "clip": ["2", 1]
+    }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": "${width}",
+      "height": "${height}",
+      "batch_size": "${batch}"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "anatonomical distortion, ignored pose guide, cropped limbs, cluttered background, blurry, watermark, text, ${negative_prompt}",
+      "clip": ["2", 1]
+    }
+  },
+  "9": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "${controlnet_name}"
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "${input_image}"
+    }
+  },
+  "11": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["3", 0],
+      "negative": ["5", 0],
+      "control_net": ["9", 0],
+      "image": ["10", 0],
+      "strength": "${controlnet_strength}",
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    }
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["2", 0],
+      "seed": "${seed}",
+      "steps": "${steps}",
+      "cfg": "${cfg}",
+      "sampler_name": "${sampler_name}",
+      "scheduler": "${scheduler}",
+      "positive": ["11", 0],
+      "negative": ["11", 1],
+      "latent_image": ["4", 0],
+      "denoise": "${denoise}"
+    }
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "8": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["7", 0],
+      "filename_prefix": "godot_controlnet_pose_guide"
+    }
+  }
+}
